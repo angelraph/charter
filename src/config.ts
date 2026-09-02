@@ -11,7 +11,8 @@ const ConfigSchema = z.object({
   mcp: z.object({
     url: z.string().url(),
   }),
-  anthropicApiKey: z.string().optional(),
+  openaiApiKey: z.string().optional(),
+  openaiModel: z.string(),
   apiPort: z.coerce.number().int().positive(),
   auditLogPath: z.string(),
   mandatesDir: z.string(),
@@ -30,7 +31,8 @@ function loadConfig(): Config {
     mcp: {
       url: process.env.BINANCE_MCP_URL ?? "https://agent.binance.com/mcp/agentic",
     },
-    anthropicApiKey: process.env.ANTHROPIC_API_KEY || undefined,
+    openaiApiKey: process.env.OPENAI_API_KEY || undefined,
+    openaiModel: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
     apiPort: process.env.CHARTER_API_PORT ?? 4477,
     auditLogPath: process.env.CHARTER_AUDIT_LOG_PATH ?? "./data/audit.log.jsonl",
     mandatesDir: process.env.CHARTER_MANDATES_DIR ?? "./data/mandates",

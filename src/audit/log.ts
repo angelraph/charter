@@ -7,6 +7,7 @@ import { config } from "../config.js";
 export type AuditEventType =
   | "MANDATE_CREATED"
   | "MANDATE_UPDATED"
+  | "NAV_SNAPSHOT"
   | "PROPOSAL_RECEIVED"
   | "VERDICT_ISSUED"
   | "EXECUTION_ATTEMPTED"

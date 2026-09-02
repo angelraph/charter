@@ -4,6 +4,7 @@ import { loadMandate } from "../../mandate/store.js";
 import { ProposalSchema, type Proposal } from "../../policy/types.js";
 import { simulateProposal } from "../../market/simulator.js";
 import { computeApproxNavUsd } from "../../market/nav.js";
+import { getOrCreateStartOfDayNav } from "../../mandate/navSnapshot.js";
 import { evaluateProposal } from "../../policy/engine.js";
 import { executeProposal } from "../../execution/adapter.js";
 import { auditLog } from "../../audit/log.js";
@@ -52,7 +53,8 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
   const todaysEntries = (await auditLog.all()).filter(
     (e) => e.type === "EXECUTION_FILLED" && e.timestamp >= todayStartIso()
   );
-  const verdict = evaluateProposal(proposal, mandate, simulation, todaysEntries);
+  const startOfDayNavUsd = await getOrCreateStartOfDayNav(activeVenue, marketDataBaseUrl());
+  const verdict = evaluateProposal(proposal, mandate, simulation, todaysEntries, { currentNavUsd: navUsd, startOfDayNavUsd });
   await auditLog.append("VERDICT_ISSUED", activeVenue.name, { verdict });
 
   console.log(`\nVerdict: ${verdict.decision}`);

@@ -5,6 +5,8 @@ import { checkSpendingCap } from "./rules/spendingCap.js";
 import { checkConfirmAbove } from "./rules/confirmAboveX.js";
 import { checkSymbolAllowlist } from "./rules/symbolAllowlist.js";
 import { checkMaxSlippage } from "./rules/maxSlippage.js";
+import { checkLeverageLimit } from "./rules/leverageLimit.js";
+import { checkDrawdownHalt } from "./rules/drawdownHalt.js";
 import { randomUUID } from "node:crypto";
 
 /**
@@ -16,12 +18,15 @@ export function evaluateProposal(
   proposal: Proposal,
   mandate: Mandate,
   simulation: SimulationResult,
-  todaysFilledEntries: AuditEntry[]
+  todaysFilledEntries: AuditEntry[],
+  navContext: { currentNavUsd: number; startOfDayNavUsd: number }
 ): Verdict {
   const reasons: RuleResult[] = [
     checkSymbolAllowlist(proposal, mandate),
     checkSpendingCap(proposal, mandate, simulation, todaysFilledEntries),
     checkMaxSlippage(simulation, mandate),
+    checkLeverageLimit(mandate),
+    checkDrawdownHalt(navContext.currentNavUsd, navContext.startOfDayNavUsd, mandate),
     checkConfirmAbove(simulation, mandate),
   ];
 

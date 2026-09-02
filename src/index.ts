@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { initCommand } from "./cli/commands/init.js";
 import { proposeCommand } from "./cli/commands/propose.js";
 import { auditTailCommand, auditVerifyCommand } from "./cli/commands/audit.js";
+import { mandateCompileCommand } from "./cli/commands/mandate.js";
 
 const program = new Command();
 
@@ -39,6 +40,18 @@ program
     });
   });
 
+const mandate = program.command("mandate").description("Manage mandates (covenants compiled into live policy)");
+
+mandate
+  .command("compile")
+  .description("Compile a plain-English covenant into a draft mandate, then activate it on confirmation")
+  .argument("<text>", "the covenant, in plain English")
+  .option("--owner <email>", "mandate owner", "uzoechiraphael1@gmail.com")
+  .option("--sub-account <id>", "sub-account identifier", "testnet-demo")
+  .action(async (text: string, opts: { owner: string; subAccount: string }) => {
+    await mandateCompileCommand(text, opts.owner, opts.subAccount);
+  });
+
 const audit = program.command("audit").description("Inspect the hash-chained audit log");
 
 audit
@@ -56,4 +69,7 @@ audit
     await auditVerifyCommand();
   });
 
-program.parseAsync(process.argv);
+program.parseAsync(process.argv).catch((err: unknown) => {
+  console.error(`\nError: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+});
