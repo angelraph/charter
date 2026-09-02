@@ -14,6 +14,7 @@ const ConfigSchema = z.object({
   openaiApiKey: z.string().optional(),
   openaiModel: z.string(),
   apiPort: z.coerce.number().int().positive(),
+  apiKey: z.string().optional(),
   auditLogPath: z.string(),
   mandatesDir: z.string(),
 });
@@ -34,6 +35,7 @@ function loadConfig(): Config {
     openaiApiKey: process.env.OPENAI_API_KEY || undefined,
     openaiModel: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
     apiPort: process.env.CHARTER_API_PORT ?? 4477,
+    apiKey: process.env.CHARTER_API_KEY || undefined,
     auditLogPath: process.env.CHARTER_AUDIT_LOG_PATH ?? "./data/audit.log.jsonl",
     mandatesDir: process.env.CHARTER_MANDATES_DIR ?? "./data/mandates",
   };

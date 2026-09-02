@@ -1,4 +1,4 @@
-import express, { type Request, type Response } from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import type { Server } from "node:http";
 import { z } from "zod";
 import { config } from "../config.js";
@@ -26,6 +26,22 @@ const ProposeBodySchema = z.object({
 export function startApiServer(): Server {
   const app = express();
   app.use(express.json());
+
+  // If CHARTER_API_KEY is set, every request must carry it as X-Charter-Api-Key.
+  // Left unset for local development so `charter serve` stays frictionless on
+  // your own machine; set it before exposing this port on a public host.
+  if (config.apiKey) {
+    const requiredKey = config.apiKey;
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.get("X-Charter-Api-Key") !== requiredKey) {
+        res.status(401).json({ error: "Missing or invalid X-Charter-Api-Key header" });
+        return;
+      }
+      next();
+    });
+  } else {
+    console.log("Warning: CHARTER_API_KEY is not set. This API accepts requests from anyone who can reach it.");
+  }
 
   // In-memory index of recent results for GET /status/:id. The audit log
   // remains the durable source of truth; this is just a fast lookup cache.

@@ -11,7 +11,8 @@ import chalk from "chalk";
  */
 
 const PORT = process.env.CHARTER_API_PORT ?? "4477";
-const BASE_URL = `http://localhost:${PORT}`;
+const BASE_URL = process.env.CHARTER_BASE_URL ?? `http://localhost:${PORT}`;
+const API_KEY = process.env.CHARTER_API_KEY;
 const MANDATE_ID = process.env.CHARTER_DEMO_MANDATE_ID ?? "b2f1e9a0-1a2b-4c3d-8e4f-000000000001";
 
 interface RogueProposal {
@@ -38,7 +39,10 @@ async function proposeOnce(p: RogueProposal): Promise<void> {
   try {
     const res = await fetch(`${BASE_URL}/propose`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(API_KEY ? { "X-Charter-Api-Key": API_KEY } : {}),
+      },
       body: JSON.stringify({
         agentId: "rogue-agent-01",
         mandateId: MANDATE_ID,
