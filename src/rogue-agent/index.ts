@@ -66,7 +66,7 @@ async function proposeOnce(p: RogueProposal): Promise<void> {
 }
 
 async function main() {
-  console.log(chalk.bold(`\n=== rogue-agent demo — talking to CHARTER at ${BASE_URL} ===\n`));
+  console.log(chalk.bold(`\nrogue-agent demo: talking to CHARTER at ${BASE_URL}\n`));
   console.log("Make sure `charter serve` and `charter init` have both run first.\n");
 
   for (const p of SCRIPT) {
@@ -74,7 +74,7 @@ async function main() {
     await new Promise((r) => setTimeout(r, 2500));
   }
 
-  console.log(chalk.bold("\n=== rogue-agent run complete ==="));
+  console.log(chalk.bold("\nrogue-agent run complete."));
 }
 
 main();

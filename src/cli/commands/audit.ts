@@ -16,7 +16,7 @@ export async function auditVerifyCommand(): Promise<void> {
   const result = await auditLog.verify();
   if (result.ok) {
     const all = await auditLog.all();
-    console.log(`Chain OK — ${all.length} entries, hash-linked from GENESIS to seq ${all[all.length - 1]?.seq ?? "N/A"}.`);
+    console.log(`Chain OK. ${all.length} entries, hash-linked from GENESIS to seq ${all[all.length - 1]?.seq ?? "N/A"}.`);
   } else {
     console.error(`Chain BROKEN at seq ${result.brokenAtSeq}: ${result.reason}`);
     process.exitCode = 1;

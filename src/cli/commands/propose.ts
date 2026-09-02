@@ -36,7 +36,7 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
   }
 
   if (verdict.decision === "VETO") {
-    console.log("\nVETOed — no order was placed. No EXECUTION_ATTEMPTED entry will appear in the audit log for this proposal.");
+    console.log("\nVETOed. No order was placed, and no EXECUTION_ATTEMPTED entry will appear in the audit log for this proposal.");
     return;
   }
 
@@ -46,8 +46,8 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
   }
 
   if (verdict.decision === "ESCALATE") {
-    console.log("\nESCALATE — this proposal crosses the confirm-above threshold and needs explicit human sign-off. Re-run with --execute to confirm and place the real order.");
+    console.log("\nESCALATE. This proposal crosses the confirm-above threshold and needs explicit human sign-off. Re-run with --execute to confirm and place the real order.");
   } else {
-    console.log("\nPASS — re-run with --execute to actually place the real order.");
+    console.log("\nPASS. Re-run with --execute to actually place the real order.");
   }
 }

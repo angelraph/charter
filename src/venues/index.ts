@@ -14,7 +14,7 @@ function buildVenue(): ExecutionVenue {
   }
   // mainnet-mcp is implemented in src/venues/mcpClient.ts (Day 5/6 decision point).
   throw new Error(
-    "EXECUTION_VENUE=mainnet-mcp is not wired up yet — src/venues/mcpClient.ts is built at the Day 5/6 decision point, once real funds and MCP OAuth are confirmed."
+    "EXECUTION_VENUE=mainnet-mcp is not wired up yet. src/venues/mcpClient.ts is built once real funds and MCP OAuth are confirmed."
   );
 }
 

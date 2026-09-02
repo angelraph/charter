@@ -28,16 +28,16 @@ export async function mandateCompileCommand(covenantText: string, owner: string,
     status: "draft",
   };
 
-  console.log("\n--- Draft mandate (not yet active) ---");
+  console.log("\nDraft mandate (not yet active):");
   console.log(JSON.stringify(draft.limits, null, 2));
-  console.log("---------------------------------------\n");
+  console.log("");
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const answer = await rl.question('Type "ACTIVATE" to make this the live policy, or anything else to abort: ');
   rl.close();
 
   if (answer.trim() !== "ACTIVATE") {
-    console.log("Aborted — mandate was NOT activated.");
+    console.log("Aborted. Mandate was not activated.");
     return;
   }
 

@@ -42,7 +42,7 @@ export class TestnetClient implements ExecutionVenue {
     });
     if (!res.ok) {
       const body = await res.text();
-      throw new Error(`Testnet ${method} ${path} failed: ${res.status} ${res.statusText} — ${body}`);
+      throw new Error(`Testnet ${method} ${path} failed: ${res.status} ${res.statusText}: ${body}`);
     }
     return (await res.json()) as T;
   }

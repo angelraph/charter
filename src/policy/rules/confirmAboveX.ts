@@ -7,7 +7,7 @@ export function checkConfirmAbove(simulation: SimulationResult, mandate: Mandate
     return {
       rule: "confirmAboveUsd",
       outcome: "warning",
-      detail: `Notional $${simulation.notionalUsd.toFixed(2)} exceeds confirmAboveUsd $${mandate.limits.confirmAboveUsd} — requires explicit human confirmation`,
+      detail: `Notional $${simulation.notionalUsd.toFixed(2)} exceeds confirmAboveUsd $${mandate.limits.confirmAboveUsd}, requires explicit human confirmation`,
     };
   }
   return {

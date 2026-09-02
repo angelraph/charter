@@ -28,7 +28,7 @@ Omit optional array fields as null rather than guessing a symbol list that wasn'
 export async function compileMandateFromText(covenantText: string): Promise<MandateLimits> {
   if (!config.openaiApiKey) {
     throw new Error(
-      "OPENAI_API_KEY is not set — the NL mandate compiler is unavailable. " +
+      "OPENAI_API_KEY is not set. The NL mandate compiler is unavailable. " +
         "Edit a mandate JSON file directly under data/mandates/ instead (see src/mandate/examples/demo-mandate.json for the shape)."
     );
   }
@@ -63,7 +63,7 @@ export async function compileMandateFromText(covenantText: string): Promise<Mand
   const result = MandateLimitsSchema.safeParse(normalized);
   if (!result.success) {
     throw new Error(
-      `Mandate compiler output failed validation — refusing to activate an unsafe policy:\n` +
+      `Mandate compiler output failed validation. Refusing to activate an unsafe policy:\n` +
         result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n") +
         `\n\nRaw output:\n${text}`
     );

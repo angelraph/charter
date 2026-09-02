@@ -73,7 +73,7 @@ const App: React.FC = () => {
   return (
     <Box flexDirection="column" paddingX={1}>
       <Text bold color="cyan">
-        CHARTER — ops console ({activeVenue.name}) — refresh #{tick}
+        CHARTER ops console ({activeVenue.name}), refresh #{tick}
       </Text>
       <Text dimColor>Nothing reaches Binance until it survives your charter.</Text>
       <Box marginTop={1} flexDirection="column">
@@ -94,7 +94,7 @@ const App: React.FC = () => {
         </Box>
         <Box flexDirection="column" borderStyle="round" borderColor="magenta" paddingX={1} marginBottom={1}>
           <Text bold>Verdict feed (last {verdicts.length})</Text>
-          {verdicts.length === 0 && <Text dimColor>No verdicts yet — run `charter propose` or the rogue-agent.</Text>}
+          {verdicts.length === 0 && <Text dimColor>No verdicts yet. Run `charter propose` or the rogue-agent.</Text>}
           {verdicts.map((v, i) => (
             <Text key={i} color={v.color}>
               {v.text}

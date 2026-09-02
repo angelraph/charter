@@ -10,7 +10,7 @@ import type { RuleResult } from "../types.js";
  */
 export function checkDrawdownHalt(currentNavUsd: number, startOfDayNavUsd: number, mandate: Mandate): RuleResult {
   if (startOfDayNavUsd <= 0) {
-    return { rule: "dailyDrawdownHaltPct", outcome: "ok", detail: "No start-of-day NAV baseline yet — skipping drawdown check" };
+    return { rule: "dailyDrawdownHaltPct", outcome: "ok", detail: "No start-of-day NAV baseline yet, skipping drawdown check" };
   }
   const drawdownPct = ((startOfDayNavUsd - currentNavUsd) / startOfDayNavUsd) * 100;
   if (drawdownPct >= mandate.limits.dailyDrawdownHaltPct) {

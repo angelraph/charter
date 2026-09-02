@@ -9,7 +9,7 @@ import { startDashboard } from "./cli/ui.js";
 
 const program = new Command();
 
-program.name("charter").description("CHARTER — a mandate/policy layer that vets AI agent trade proposals before execution.").version("0.1.0");
+program.name("charter").description("CHARTER: a mandate/policy layer that vets AI agent trade proposals before execution.").version("0.1.0");
 
 program
   .command("init")
@@ -44,7 +44,7 @@ program
 
 program
   .command("dashboard")
-  .description("Live terminal ops console: mandate, verdict feed, real fills — polls the real audit log")
+  .description("Live terminal ops console: mandate, verdict feed, real fills. Polls the real audit log.")
   .action(() => {
     startDashboard();
   });
