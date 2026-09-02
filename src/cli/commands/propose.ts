@@ -1,13 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { activeVenue, marketDataBaseUrl } from "../../venues/index.js";
-import { loadMandate } from "../../mandate/store.js";
-import { ProposalSchema, type Proposal } from "../../policy/types.js";
-import { simulateProposal } from "../../market/simulator.js";
-import { computeApproxNavUsd } from "../../market/nav.js";
-import { getOrCreateStartOfDayNav } from "../../mandate/navSnapshot.js";
-import { evaluateProposal } from "../../policy/engine.js";
-import { executeProposal } from "../../execution/adapter.js";
-import { auditLog } from "../../audit/log.js";
+import { runProposal } from "../../policy/runProposal.js";
 
 export interface ProposeOptions {
   symbol: string;
@@ -18,44 +9,25 @@ export interface ProposeOptions {
   execute: boolean;
 }
 
-function todayStartIso(): string {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
-}
-
 export async function proposeCommand(opts: ProposeOptions): Promise<void> {
-  const mandate = await loadMandate(opts.mandateId);
+  console.log(`\n${opts.agentId} wants to ${opts.side} $${opts.usd} of ${opts.symbol}`);
+  console.log("Simulating against live order book...");
 
-  const proposal: Proposal = ProposalSchema.parse({
-    id: randomUUID(),
+  const { verdict, execution } = await runProposal({
     agentId: opts.agentId,
-    mandateId: mandate.id,
+    mandateId: opts.mandateId,
     symbol: opts.symbol,
     side: opts.side,
-    type: "MARKET",
-    quoteOrderQty: opts.usd,
+    usd: opts.usd,
     reason: "CLI propose command",
-    submittedAt: new Date().toISOString(),
+    execute: opts.execute,
   });
 
-  await auditLog.append("PROPOSAL_RECEIVED", activeVenue.name, { proposal });
-  console.log(`\nProposal ${proposal.id}: ${proposal.agentId} wants to ${proposal.side} $${opts.usd} of ${proposal.symbol}`);
-
-  console.log("Simulating against live order book...");
-  const navUsd = await computeApproxNavUsd(activeVenue, marketDataBaseUrl());
-  const simulation = await simulateProposal(activeVenue, proposal, navUsd);
+  const s = verdict.simulation;
   console.log(
-    `  reference price: ${simulation.referencePrice}  projected fill: ${simulation.projectedFillPrice.toFixed(2)}  ` +
-      `slippage: ${simulation.projectedSlippageBps.toFixed(1)}bps  NAV impact: ${simulation.projectedNavImpactPct.toFixed(3)}%`
+    `  reference price: ${s.referencePrice}  projected fill: ${s.projectedFillPrice.toFixed(2)}  ` +
+      `slippage: ${s.projectedSlippageBps.toFixed(1)}bps  NAV impact: ${s.projectedNavImpactPct.toFixed(3)}%`
   );
-
-  const todaysEntries = (await auditLog.all()).filter(
-    (e) => e.type === "EXECUTION_FILLED" && e.timestamp >= todayStartIso()
-  );
-  const startOfDayNavUsd = await getOrCreateStartOfDayNav(activeVenue, marketDataBaseUrl());
-  const verdict = evaluateProposal(proposal, mandate, simulation, todaysEntries, { currentNavUsd: navUsd, startOfDayNavUsd });
-  await auditLog.append("VERDICT_ISSUED", activeVenue.name, { verdict });
 
   console.log(`\nVerdict: ${verdict.decision}`);
   for (const r of verdict.reasons) {
@@ -68,21 +40,14 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
     return;
   }
 
-  if (verdict.decision === "ESCALATE") {
-    console.log("\nESCALATE — this proposal crosses the confirm-above threshold and needs explicit human sign-off.");
-    if (!opts.execute) {
-      console.log("Re-run with --execute to confirm and place the real order.");
-      return;
-    }
-    console.log("--execute supplied: treating as human confirmation, proceeding.");
-  }
-
-  if (!opts.execute) {
-    console.log("\nPASS — re-run with --execute to actually place the real order.");
+  if (execution) {
+    console.log(`\nFilled: orderId=${execution.orderId} status=${execution.status} executedQty=${execution.executedQty} quoteQty=${execution.cummulativeQuoteQty}`);
     return;
   }
 
-  console.log(`\nPlacing real order on venue "${activeVenue.name}"...`);
-  const result = await executeProposal(activeVenue, proposal, verdict);
-  console.log(`Filled: orderId=${result.orderId} status=${result.status} executedQty=${result.executedQty} quoteQty=${result.cummulativeQuoteQty}`);
+  if (verdict.decision === "ESCALATE") {
+    console.log("\nESCALATE — this proposal crosses the confirm-above threshold and needs explicit human sign-off. Re-run with --execute to confirm and place the real order.");
+  } else {
+    console.log("\nPASS — re-run with --execute to actually place the real order.");
+  }
 }

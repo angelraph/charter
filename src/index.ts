@@ -4,6 +4,8 @@ import { initCommand } from "./cli/commands/init.js";
 import { proposeCommand } from "./cli/commands/propose.js";
 import { auditTailCommand, auditVerifyCommand } from "./cli/commands/audit.js";
 import { mandateCompileCommand } from "./cli/commands/mandate.js";
+import { startApiServer } from "./api/server.js";
+import { startDashboard } from "./cli/ui.js";
 
 const program = new Command();
 
@@ -38,6 +40,20 @@ program
       agentId: opts.agent,
       execute: opts.execute,
     });
+  });
+
+program
+  .command("dashboard")
+  .description("Live terminal ops console: mandate, verdict feed, real fills — polls the real audit log")
+  .action(() => {
+    startDashboard();
+  });
+
+program
+  .command("serve")
+  .description("Start the local HTTP API other agents propose against (POST /propose)")
+  .action(() => {
+    startApiServer();
   });
 
 const mandate = program.command("mandate").description("Manage mandates (covenants compiled into live policy)");
