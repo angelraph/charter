@@ -8,12 +8,12 @@ import { activeVenue, marketDataBaseUrl } from "../src/venues/index.js";
 import { getTickerPrice } from "../src/market/binanceRest.js";
 
 async function main() {
-  console.log(`\n=== CHARTER testnet smoke test — venue: ${activeVenue.name} ===\n`);
+  console.log(`\nCHARTER testnet smoke test. Venue: ${activeVenue.name}\n`);
 
   console.log("[1/3] Fetching real account balances...");
   const balances = await activeVenue.getSubAccountBalances();
   if (balances.length === 0) {
-    console.log("  (account has zero balances everywhere — testnet usually seeds BTC/USDT/BNB automatically on signup)");
+    console.log("  (account has zero balances everywhere, testnet usually seeds BTC/USDT/BNB automatically on signup)");
   } else {
     for (const b of balances) {
       console.log(`  ${b.asset}: free=${b.free} locked=${b.locked}`);
@@ -30,7 +30,7 @@ async function main() {
   const ticker = await getTickerPrice(marketDataBaseUrl(), "BTCUSDT");
   console.log(`  BTCUSDT last price: ${ticker.price}`);
 
-  console.log(`\n=== Done. Wall clock: ${new Date().toISOString()} — compare against testnet.binance.vision to verify this is real. ===\n`);
+  console.log(`\nDone. Wall clock: ${new Date().toISOString()}. Compare against testnet.binance.vision to verify this is real.\n`);
 }
 
 main().catch((err) => {
