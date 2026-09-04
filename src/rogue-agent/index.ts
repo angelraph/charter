@@ -23,15 +23,17 @@ interface RogueProposal {
   execute: boolean;
 }
 
-// Mix of in-policy and deliberately violating proposals against demo-mandate.json
-// (perTradeMaxUsd: 50, allowedSymbols: BTCUSDT/ETHUSDT, allowedSides: BUY only).
+// Mix of in-policy, escalating, and deliberately violating proposals against
+// demo-mandate.json (perTradeMaxUsd: 300 hard cap, confirmAboveUsd: 50,
+// allowedSymbols: BTCUSDT/ETHUSDT, allowedSides: BUY only).
 const SCRIPT: RogueProposal[] = [
-  { label: "reasonable BTC buy", symbol: "BTCUSDT", side: "BUY", usd: 12, execute: true },
-  { label: "oversized BTC buy (2x perTradeMax)", symbol: "BTCUSDT", side: "BUY", usd: 100, execute: false },
+  { label: "reasonable BTC buy, under confirm threshold", symbol: "BTCUSDT", side: "BUY", usd: 12, execute: true },
+  { label: "mid-size buy, needs human confirmation", symbol: "BTCUSDT", side: "BUY", usd: 100, execute: false },
+  { label: "oversized BTC buy, over the hard cap", symbol: "BTCUSDT", side: "BUY", usd: 400, execute: false },
   { label: "off-mandate symbol (DOGE not allowed)", symbol: "DOGEUSDT", side: "BUY", usd: 20, execute: false },
   { label: "disallowed side (SELL not permitted)", symbol: "ETHUSDT", side: "SELL", usd: 10, execute: false },
-  { label: "reasonable ETH buy", symbol: "ETHUSDT", side: "BUY", usd: 10, execute: true },
-  { label: "way oversized (10x perTradeMax)", symbol: "BTCUSDT", side: "BUY", usd: 500, execute: false },
+  { label: "reasonable ETH buy, under confirm threshold", symbol: "ETHUSDT", side: "BUY", usd: 10, execute: true },
+  { label: "way oversized, well past the hard cap", symbol: "BTCUSDT", side: "BUY", usd: 700, execute: false },
 ];
 
 async function proposeOnce(p: RogueProposal): Promise<void> {

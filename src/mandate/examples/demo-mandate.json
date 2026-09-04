@@ -4,13 +4,13 @@
   "owner": "uzoechiraphael1@gmail.com",
   "createdAt": "2026-09-02T00:00:00.000Z",
   "subAccountId": "testnet-demo",
-  "naturalLanguageSource": "Max $50 per order. Daily spend cap $500. No leverage (spot only). Halt all trading if the account drops 5% in a day. Anything over $200 needs my explicit confirmation. Only BTCUSDT and ETHUSDT. Buys only for the demo.",
+  "naturalLanguageSource": "Hard cap of $300 per order. Anything over $50 needs my explicit confirmation. Daily spend cap $500. No leverage (spot only). Halt all trading if the account drops 5% in a day. Only BTCUSDT and ETHUSDT. Buys only for the demo.",
   "limits": {
-    "perTradeMaxUsd": 50,
+    "perTradeMaxUsd": 300,
     "dailySpendCapUsd": 500,
     "maxLeverage": 1,
     "dailyDrawdownHaltPct": 5,
-    "confirmAboveUsd": 200,
+    "confirmAboveUsd": 50,
     "allowedSymbols": ["BTCUSDT", "ETHUSDT"],
     "allowedSides": ["BUY"],
     "maxSlippageBps": 50
