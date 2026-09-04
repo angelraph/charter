@@ -1,7 +1,7 @@
 {
   "name": "charter",
   "version": "0.1.0",
-  "description": "CHARTER — a mandate/policy layer that vets AI agent trade proposals before they reach a Binance Agentic sub-account.",
+  "description": "CHARTER: a mandate/policy layer that vets AI agent trade proposals before they reach a Binance Agentic sub-account.",
   "type": "module",
   "license": "MIT",
   "bin": {

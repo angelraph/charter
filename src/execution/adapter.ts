@@ -4,7 +4,7 @@ import { auditLog } from "../audit/log.js";
 
 /**
  * The ONLY path by which a real order reaches the venue. Called exclusively
- * on a PASS verdict — VETOs and un-actioned ESCALATEs never reach this
+ * on a PASS verdict. VETOs and un-actioned ESCALATEs never reach this
  * function, which is exactly what the audit log proves: a vetoed proposal
  * has no EXECUTION_ATTEMPTED entry at all.
  */

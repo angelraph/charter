@@ -9,7 +9,7 @@ import type {
 
 /**
  * Real, authenticated client against Binance Spot Testnet
- * (https://testnet.binance.vision) — a genuine order-matching engine with
+ * (https://testnet.binance.vision), a genuine order-matching engine with
  * virtual funds. Same signed-REST shape as production Binance Spot API,
  * just a different base URL and API key pair. Get keys by logging into
  * https://testnet.binance.vision with GitHub.

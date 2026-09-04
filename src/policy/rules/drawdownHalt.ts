@@ -5,7 +5,7 @@ import type { RuleResult } from "../types.js";
  * Compares current NAV against the day's opening NAV snapshot (see
  * mandate/navSnapshot.ts). If the account has dropped by more than
  * dailyDrawdownHaltPct since the start of the day, every proposal is
- * vetoed regardless of its own size — a portfolio-level circuit breaker,
+ * vetoed regardless of its own size, a portfolio-level circuit breaker,
  * not a per-trade one.
  */
 export function checkDrawdownHalt(currentNavUsd: number, startOfDayNavUsd: number, mandate: Mandate): RuleResult {

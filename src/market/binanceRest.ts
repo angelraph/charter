@@ -2,7 +2,7 @@
  * Public, unauthenticated market data. Venue-aware: pass the base URL of
  * whichever venue is active so displayed reference prices always match
  * the venue that will actually execute (testnet and mainnet order books
- * differ — mixing them would make CHARTER's own numbers dishonest).
+ * differ, mixing them would make CHARTER's own numbers dishonest).
  */
 
 export interface Ticker {

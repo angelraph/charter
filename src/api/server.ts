@@ -20,8 +20,8 @@ const ProposeBodySchema = z.object({
 /**
  * The surface other agents (and the rogue-agent demo process) call.
  * This is what makes CHARTER's veto real rather than staged: any process
- * that can reach this port can propose, and gets a genuine verdict back —
- * there is no separate "demo mode" that fakes a rejection.
+ * that can reach this port can propose, and gets a genuine verdict back.
+ * There is no separate "demo mode" that fakes a rejection.
  */
 export function startApiServer(): Server {
   const app = express();

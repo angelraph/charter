@@ -25,7 +25,7 @@ Omit optional array fields as null rather than guessing a symbol list that wasn'
 /**
  * Compiles free-text covenant into draft MandateLimits via the OpenAI API.
  * Always re-validated through MandateLimitsSchema before it's ever shown to
- * the operator — a malformed or out-of-range model response fails loudly
+ * the operator, so a malformed or out-of-range model response fails loudly
  * here rather than silently becoming a live policy.
  */
 export async function compileMandateFromText(covenantText: string): Promise<MandateLimits> {

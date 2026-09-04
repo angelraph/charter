@@ -1,7 +1,7 @@
 import type { Mandate } from "../../mandate/schema.js";
 import type { RuleResult, SimulationResult } from "../types.js";
 
-/** Not a VETO by itself — crossing this threshold escalates to a human, it doesn't block. */
+/** Not a VETO by itself. Crossing this threshold escalates to a human, it doesn't block. */
 export function checkConfirmAbove(simulation: SimulationResult, mandate: Mandate): RuleResult {
   if (simulation.notionalUsd > mandate.limits.confirmAboveUsd) {
     return {

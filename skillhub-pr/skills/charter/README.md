@@ -1,6 +1,6 @@
 # charter
 
-A Skill Hub skill for calling [CHARTER](https://github.com/angelraph/charter) — a mandate/policy layer that vets an agent's trade proposals against a human-defined covenant before they execute.
+A Skill Hub skill for calling [CHARTER](https://github.com/angelraph/charter), a mandate/policy layer that vets an agent's trade proposals against a human-defined covenant before they execute.
 
 See [`skill.md`](./skill.md) for the full instructions an agent follows to use this skill, and [`references/`](./references) for the exact request/response JSON shapes.
 

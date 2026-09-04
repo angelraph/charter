@@ -42,7 +42,7 @@ function hashEntry(e: Omit<AuditEntry, "hash">): string {
 /**
  * Append-only, hash-chained audit log. One JSON object per line. Every
  * entry's hash depends on the previous entry's hash, so any tampering
- * with an earlier line breaks the chain from that point forward —
+ * with an earlier line breaks the chain from that point forward,
  * verifiable with `verify()` below.
  */
 export class AuditLog {

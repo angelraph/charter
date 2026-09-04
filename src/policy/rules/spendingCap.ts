@@ -2,7 +2,7 @@ import type { Mandate } from "../../mandate/schema.js";
 import type { Proposal, RuleResult, SimulationResult } from "../types.js";
 import type { AuditEntry } from "../../audit/log.js";
 
-/** Rolling daily spend, computed from today's EXECUTION_FILLED audit entries — not a separate counter that can drift. */
+/** Rolling daily spend, computed from today's EXECUTION_FILLED audit entries rather than a separate counter that can drift. */
 export function checkSpendingCap(
   proposal: Proposal,
   mandate: Mandate,

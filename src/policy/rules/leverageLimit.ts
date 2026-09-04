@@ -3,7 +3,7 @@ import type { RuleResult } from "../types.js";
 
 /**
  * CHARTER's current execution venues (testnet Spot, and mainnet MCP Spot)
- * are spot-only — no leverage is ever requested by a proposal. This rule
+ * are spot-only, so no leverage is ever requested by a proposal. This rule
  * exists so the mandate's maxLeverage field is still enforced (fails
  * closed) the moment a margin/futures proposal type is added, rather than
  * silently doing nothing.

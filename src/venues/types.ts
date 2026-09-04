@@ -1,7 +1,7 @@
 /**
  * Every execution venue CHARTER can point at implements this interface.
- * `execution/adapter.ts` and `market/simulator.ts` depend only on this —
- * never on testnetClient or mcpClient directly — so switching
+ * `execution/adapter.ts` and `market/simulator.ts` depend only on this,
+ * never on testnetClient or mcpClient directly, so switching
  * EXECUTION_VENUE from "testnet" to "mainnet-mcp" is a config change,
  * not a rewrite.
  */

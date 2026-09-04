@@ -5,8 +5,8 @@ import { TestnetClient } from "./testnetClient.js";
 /**
  * Single place that picks the active venue from config.EXECUTION_VENUE.
  * Everything else in the app (policy simulator, execution adapter, CLI)
- * imports `activeVenue` and never touches a concrete client directly —
- * that's what makes flipping to mainnet-mcp a one-line config change.
+ * imports `activeVenue` and never touches a concrete client directly.
+ * That's what makes flipping to mainnet-mcp a one-line config change.
  */
 function buildVenue(): ExecutionVenue {
   if (config.executionVenue === "testnet") {

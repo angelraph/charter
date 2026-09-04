@@ -11,7 +11,7 @@ function todayStartIso(): string {
 /**
  * Returns today's opening NAV baseline for the drawdown-halt rule. If no
  * NAV_SNAPSHOT has been recorded yet today, computes one from the venue
- * right now and logs it — so the very first proposal of the day sets the
+ * right now and logs it, so the very first proposal of the day sets the
  * baseline everything else is measured against.
  */
 export async function getOrCreateStartOfDayNav(venue: ExecutionVenue, marketBaseUrl: string): Promise<number> {

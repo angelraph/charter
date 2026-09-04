@@ -3,7 +3,7 @@ import type { Proposal, SimulationResult } from "../policy/types.js";
 
 /**
  * Walks the REAL order book of whichever venue will execute the trade
- * (never a different venue's book — that would make projected vs. actual
+ * (never a different venue's book, that would make projected vs. actual
  * numbers dishonest) to estimate fill price and slippage for a proposal's
  * notional size.
  */

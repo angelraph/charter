@@ -3,8 +3,8 @@ import chalk from "chalk";
 
 /**
  * A genuinely separate OS process pretending to be an unruly trading
- * agent. It only ever talks to CHARTER's HTTP API — never touches the
- * venue directly, never imports CHARTER's internals — so its rejections
+ * agent. It only ever talks to CHARTER's HTTP API, never touches the
+ * venue directly, never imports CHARTER's internals, so its rejections
  * are as real as any other agent's would be. Fires a mix of proposals
  * that comply with the demo mandate and ones deliberately designed to
  * violate it.

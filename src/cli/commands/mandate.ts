@@ -6,7 +6,7 @@ import { saveMandate } from "../../mandate/store.js";
 import { auditLog } from "../../audit/log.js";
 
 /**
- * `charter mandate compile "<covenant text>"` — drafts a policy from
+ * `charter mandate compile "<covenant text>"` drafts a policy from
  * plain English, shows it for review, and requires the operator to type
  * the literal word ACTIVATE before it becomes a live mandate. Nothing is
  * ever silently activated from LLM output.
