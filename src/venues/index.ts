@@ -25,7 +25,23 @@ function buildVenue(): ExecutionVenue {
   );
 }
 
-export const activeVenue: ExecutionVenue = buildVenue();
+// Lazy on purpose: index.ts statically imports every command module up
+// front (including the API server and the dashboard) regardless of which
+// subcommand was actually run, and ES module imports evaluate eagerly. If
+// this were a plain `buildVenue()` call at import time, something with
+// nothing to do with any venue, e.g. `charter audit verify`, would fail
+// before commander even looked at process.argv. Building lazily on first
+// real use means only commands that actually need a venue ever require
+// credentials for one.
+let cachedVenue: ExecutionVenue | undefined;
+
+export const activeVenue: ExecutionVenue = new Proxy({} as ExecutionVenue, {
+  get(_target, prop, receiver) {
+    if (!cachedVenue) cachedVenue = buildVenue();
+    const value = Reflect.get(cachedVenue, prop, receiver);
+    return typeof value === "function" ? value.bind(cachedVenue) : value;
+  },
+});
 
 export function marketDataBaseUrl(): string {
   return config.executionVenue === "testnet" ? config.testnet.baseUrl : "https://api.binance.com";
