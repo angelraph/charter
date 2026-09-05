@@ -46,14 +46,12 @@ function loadConfig(): Config {
     process.exit(1);
   }
 
-  if (parsed.data.executionVenue === "testnet" && (!parsed.data.testnet.apiKey || !parsed.data.testnet.apiSecret)) {
-    console.error(
-      "EXECUTION_VENUE=testnet requires BINANCE_TESTNET_API_KEY and BINANCE_TESTNET_API_SECRET.\n" +
-        "Register at https://testnet.binance.vision (GitHub login) to get them, then copy .env.example to .env and fill them in."
-    );
-    process.exit(1);
-  }
-
+  // Deliberately no venue-specific validation here (e.g. "testnet needs API keys").
+  // config.ts is imported by modules with nothing to do with any venue, such as
+  // the audit log and the mandate store, and by the unit tests. A missing
+  // credential should fail loudly the moment something actually tries to use
+  // that venue, not the moment any file merely imports config. See
+  // venues/index.ts for that check.
   return parsed.data;
 }
 

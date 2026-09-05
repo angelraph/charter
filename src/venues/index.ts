@@ -10,6 +10,13 @@ import { TestnetClient } from "./testnetClient.js";
  */
 function buildVenue(): ExecutionVenue {
   if (config.executionVenue === "testnet") {
+    if (!config.testnet.apiKey || !config.testnet.apiSecret) {
+      console.error(
+        "EXECUTION_VENUE=testnet requires BINANCE_TESTNET_API_KEY and BINANCE_TESTNET_API_SECRET.\n" +
+          "Register at https://testnet.binance.vision (GitHub login) to get them, then copy .env.example to .env and fill them in."
+      );
+      process.exit(1);
+    }
     return new TestnetClient(config.testnet.apiKey, config.testnet.apiSecret, config.testnet.baseUrl);
   }
   // mainnet-mcp is implemented in src/venues/mcpClient.ts (Day 5/6 decision point).
