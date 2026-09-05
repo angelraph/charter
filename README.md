@@ -10,6 +10,27 @@ Built for the Binance Agent OS Mini Hackathon, Track A.
 
 Binance's own coverage of the Agent OS launch names the problem this project addresses. TechCrunch's headline on the announcement: "Binance now lets AI agents trade, but keeping them in check is largely up to users." CHARTER takes that responsibility off the user and puts it in an enforced, auditable policy instead.
 
+## How it works
+
+```mermaid
+flowchart TD
+    Human["Human"] -->|"writes a covenant in plain English"| Mandate["Mandate\n(compiled policy: caps, allowlist, drawdown halt...)"]
+    Agent["Any agent\n(CLI, rogue-agent, or a third party)"] -->|"POST /propose"| API["CHARTER API"]
+    API --> Sim["Simulator\n(walks the live order book)"]
+    Mandate --> Engine["Policy engine"]
+    Sim --> Engine
+    Engine -->|"PASS"| Exec["Execution adapter"]
+    Engine -->|"ESCALATE"| Wait["Wait for human confirmation"]
+    Wait -->|"confirmed"| Exec
+    Engine -->|"VETO"| Blocked["No execution attempted"]
+    Exec --> Venue["Execution venue\n(testnet or mainnet MCP)"]
+    Venue --> Fill["Real fill"]
+    Fill --> Audit["Audit log\n(hash-chained, append-only)"]
+    Blocked --> Audit
+```
+
+A proposal only ever reaches a real exchange through the execution adapter, and the execution adapter only ever runs on a PASS or a confirmed ESCALATE. A VETO stops at the policy engine, which is why a vetoed proposal has no execution entry in the audit log at all, not a failed one, a missing one.
+
 ## Execution venue
 
 CHARTER always executes against a real order-matching engine. It never fabricates fills or simulation numbers. Which engine it uses depends on the `EXECUTION_VENUE` setting.

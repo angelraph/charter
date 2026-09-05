@@ -4,13 +4,9 @@
   "description": "CHARTER: a mandate/policy layer that vets AI agent trade proposals before they reach a Binance Agentic sub-account.",
   "type": "module",
   "license": "MIT",
-  "bin": {
-    "charter": "./dist/index.js"
-  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "testnet:smoke": "tsx scripts/testnet-smoke-test.ts",
-    "mcp:smoke": "tsx scripts/mcp-smoke-test.ts",
     "rogue-agent": "tsx src/rogue-agent/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
