@@ -28,6 +28,12 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
     `  reference price: ${s.referencePrice}  projected fill: ${s.projectedFillPrice.toFixed(2)}  ` +
       `slippage: ${s.projectedSlippageBps.toFixed(1)}bps  NAV impact: ${s.projectedNavImpactPct.toFixed(3)}%`
   );
+  if (s.liquidityInsufficient) {
+    console.log(
+      `  WARNING: sampled order-book depth could not fully cover this notional (unfilled: $${s.unfilledUsd.toFixed(2)}). ` +
+        `Projected slippage/fill price above reflect only the fillable portion and understate real impact.`
+    );
+  }
 
   console.log(`\nVerdict: ${verdict.decision}`);
   for (const r of verdict.reasons) {

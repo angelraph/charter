@@ -35,6 +35,13 @@ export async function simulateProposal(venue: ExecutionVenue, proposal: Proposal
   const projectedSlippageBps = referencePrice > 0 ? ((projectedFillPrice - referencePrice) / referencePrice) * 10_000 * (proposal.side === "BUY" ? 1 : -1) : 0;
   const projectedNavImpactPct = navUsd > 0 ? (notionalUsd / navUsd) * 100 : 0;
 
+  // If the sampled depth ran out before covering the full notional, the numbers
+  // above only describe the fillable portion and understate the real impact.
+  // liquidityInsufficient/unfilledUsd are the authoritative signal of that, not
+  // projectedFillPrice/projectedSlippageBps.
+  const liquidityInsufficient = remainingUsd > 0;
+  const unfilledUsd = liquidityInsufficient ? remainingUsd : 0;
+
   return {
     venue: venue.name,
     referencePrice,
@@ -43,5 +50,7 @@ export async function simulateProposal(venue: ExecutionVenue, proposal: Proposal
     notionalUsd,
     projectedNavImpactPct,
     orderBookDepthSampledAt: depth.sampledAt,
+    liquidityInsufficient,
+    unfilledUsd,
   };
 }

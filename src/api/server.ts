@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import { z } from "zod";
 import { config } from "../config.js";
 import { runProposal } from "../policy/runProposal.js";
-import { loadMandate } from "../mandate/store.js";
+import { loadMandate, MandateNotFoundError } from "../mandate/store.js";
 import { auditLog } from "../audit/log.js";
 import type { RunProposalResult } from "../policy/runProposal.js";
 
@@ -62,6 +62,10 @@ export function startApiServer(): Server {
         execution: result.execution ?? null,
       });
     } catch (err) {
+      if (err instanceof MandateNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return;
+      }
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });

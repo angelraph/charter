@@ -33,6 +33,10 @@ export interface SimulationResult {
   notionalUsd: number;
   projectedNavImpactPct: number;
   orderBookDepthSampledAt: string;
+  /** True when the sampled order-book depth couldn't fully cover notionalUsd. When true, projectedFillPrice/projectedSlippageBps describe only the fillable portion and understate the real impact. */
+  liquidityInsufficient: boolean;
+  /** Notional not coverable by the sampled depth; 0 when fully covered. */
+  unfilledUsd: number;
 }
 
 export interface Verdict {

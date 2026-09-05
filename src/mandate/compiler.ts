@@ -23,6 +23,54 @@ constraint above; dailyDrawdownHaltPct defaults to 5 if unstated).
 Omit optional array fields as null rather than guessing a symbol list that wasn't mentioned.`;
 
 /**
+ * Pure parse/normalize/validate step, factored out of compileMandateFromText
+ * so it's unit-testable without a live OpenAI call. Strips markdown code
+ * fences first, since models occasionally wrap JSON in them despite the
+ * system prompt saying not to.
+ */
+export function parseCompilerOutput(rawText: string): MandateLimits {
+  const stripped = rawText
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripped);
+  } catch {
+    throw new Error(`Mandate compiler returned non-JSON output:\n${rawText}`);
+  }
+
+  // Normalize explicit nulls to undefined for the optional-field schema.
+  const normalized = Object.fromEntries(
+    Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [k, v === null ? undefined : v])
+  );
+
+  const result = MandateLimitsSchema.safeParse(normalized);
+  if (!result.success) {
+    throw new Error(
+      `Mandate compiler output failed validation. Refusing to activate an unsafe policy:\n` +
+        result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n") +
+        `\n\nRaw output:\n${rawText}`
+    );
+  }
+
+  // Belt-and-braces: the prompt asks for confirmAboveUsd < perTradeMaxUsd, but
+  // a model can ignore instructions. Enforce it in code rather than trusting
+  // the prompt alone, since a violation here silently makes the ESCALATE
+  // verdict unreachable (see policy/rules/confirmAboveX.ts).
+  if (result.data.confirmAboveUsd >= result.data.perTradeMaxUsd) {
+    throw new Error(
+      `Mandate compiler output is inconsistent: confirmAboveUsd ($${result.data.confirmAboveUsd}) must be less than ` +
+        `perTradeMaxUsd ($${result.data.perTradeMaxUsd}), otherwise no order could ever need confirmation without ` +
+        `already being blocked by the hard cap. Refusing to activate this policy.`
+    );
+  }
+
+  return result.data;
+}
+
+/**
  * Compiles free-text covenant into draft MandateLimits via the OpenAI API.
  * Always re-validated through MandateLimitsSchema before it's ever shown to
  * the operator, so a malformed or out-of-range model response fails loudly
@@ -51,38 +99,5 @@ export async function compileMandateFromText(covenantText: string): Promise<Mand
     throw new Error("Mandate compiler received no text response from the model");
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error(`Mandate compiler returned non-JSON output:\n${text}`);
-  }
-
-  // Normalize explicit nulls to undefined for the optional-field schema.
-  const normalized = Object.fromEntries(
-    Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [k, v === null ? undefined : v])
-  );
-
-  const result = MandateLimitsSchema.safeParse(normalized);
-  if (!result.success) {
-    throw new Error(
-      `Mandate compiler output failed validation. Refusing to activate an unsafe policy:\n` +
-        result.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n") +
-        `\n\nRaw output:\n${text}`
-    );
-  }
-
-  // Belt-and-braces: the prompt asks for confirmAboveUsd < perTradeMaxUsd, but
-  // a model can ignore instructions. Enforce it in code rather than trusting
-  // the prompt alone, since a violation here silently makes the ESCALATE
-  // verdict unreachable (see policy/rules/confirmAboveX.ts).
-  if (result.data.confirmAboveUsd >= result.data.perTradeMaxUsd) {
-    throw new Error(
-      `Mandate compiler output is inconsistent: confirmAboveUsd ($${result.data.confirmAboveUsd}) must be less than ` +
-        `perTradeMaxUsd ($${result.data.perTradeMaxUsd}), otherwise no order could ever need confirmation without ` +
-        `already being blocked by the hard cap. Refusing to activate this policy.`
-    );
-  }
-
-  return result.data;
+  return parseCompilerOutput(text);
 }

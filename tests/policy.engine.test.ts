@@ -50,6 +50,8 @@ function makeSimulation(overrides: Partial<SimulationResult> = {}): SimulationRe
     notionalUsd: 15,
     projectedNavImpactPct: 0.01,
     orderBookDepthSampledAt: new Date().toISOString(),
+    liquidityInsufficient: false,
+    unfilledUsd: 0,
     ...overrides,
   };
 }

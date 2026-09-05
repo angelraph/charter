@@ -31,6 +31,25 @@ flowchart TD
 
 A proposal only ever reaches a real exchange through the execution adapter, and the execution adapter only ever runs on a PASS or a confirmed ESCALATE. A VETO stops at the policy engine, which is why a vetoed proposal has no execution entry in the audit log at all, not a failed one, a missing one.
 
+## Verdict reasons
+
+A verdict is never a bare PASS, VETO, or ESCALATE label. Every `Verdict` carries a `reasons` array with one entry per policy rule that ran, each shaped as `{ rule, outcome, detail }` (`outcome` is `"ok"`, `"warning"`, or `"violated"`). This is the structured attribution behind the decision: which specific rule drove it, and why, not just the final outcome. It's produced by `evaluateProposal` in `src/policy/engine.ts`, which runs every rule and always returns the full result set regardless of decision; the shape itself is `RuleResult` in `src/policy/types.ts`.
+
+Example, for a proposal that gets vetoed for exceeding the daily spend cap while every other rule passes:
+
+```json
+{
+  "decision": "VETO",
+  "reasons": [
+    { "rule": "symbolAllowlist", "outcome": "ok", "detail": "BTCUSDT is on the allowlist for BUY" },
+    { "rule": "dailySpendCapUsd", "outcome": "violated", "detail": "Today's spend $490 + this proposal $15 exceeds dailySpendCapUsd $500" },
+    { "rule": "maxSlippageBps", "outcome": "ok", "detail": "Projected slippage 2.1bps is within 50bps limit" }
+  ]
+}
+```
+
+The CLI's `propose` command prints this array line by line (one of `✗` / `!` / `✓` per rule), the API returns it verbatim in the `POST /propose` and `GET /status/:id` responses, and it's written to the audit log unmodified as part of every `VERDICT_ISSUED` entry, so `audit tail` and `audit verify` show the same attribution that decided the trade.
+
 ## Execution venue
 
 CHARTER always executes against a real order-matching engine. It never fabricates fills or simulation numbers. Which engine it uses depends on the `EXECUTION_VENUE` setting.
