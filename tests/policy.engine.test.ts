@@ -126,3 +126,34 @@ describe("evaluateProposal", () => {
     expect(verdict.reasons.some((r) => r.rule === "maxSlippageBps" && r.outcome === "violated")).toBe(true);
   });
 });
+
+describe("kill switch", () => {
+  it("vetoes an otherwise compliant proposal while engaged", () => {
+    const verdict = evaluateProposal(makeProposal(), makeMandate(), makeSimulation(), noFills, flatNav, {
+      engaged: true,
+      since: "2026-09-21T00:00:00.000Z",
+      by: "alice",
+      reason: "odd fills",
+    });
+    expect(verdict.decision).toBe("VETO");
+    const rule = verdict.reasons.find((r) => r.rule === "killSwitch")!;
+    expect(rule.outcome).toBe("violated");
+    expect(rule.detail).toContain("alice");
+    expect(rule.detail).toContain("odd fills");
+  });
+
+  it("vetoes a proposal that would otherwise escalate", () => {
+    const mandate = makeMandate({ perTradeMaxUsd: 300, dailySpendCapUsd: 1000 });
+    const verdict = evaluateProposal(makeProposal({ quoteOrderQty: 250 }), mandate, makeSimulation({ notionalUsd: 250 }), noFills, flatNav, {
+      engaged: true,
+    });
+    expect(verdict.decision).toBe("VETO");
+  });
+
+  it("has no effect when released or never engaged", () => {
+    const released = evaluateProposal(makeProposal(), makeMandate(), makeSimulation(), noFills, flatNav, { engaged: false });
+    const absent = evaluateProposal(makeProposal(), makeMandate(), makeSimulation(), noFills, flatNav);
+    expect(released.decision).toBe("PASS");
+    expect(absent.decision).toBe("PASS");
+  });
+});

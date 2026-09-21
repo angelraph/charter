@@ -2,15 +2,27 @@ import type { ExecutionVenue, OrderRequest, OrderResult } from "../venues/types.
 import type { Proposal, Verdict } from "../policy/types.js";
 import { auditLog } from "../audit/log.js";
 
+export interface ApprovalRef {
+  approvalId: string;
+  approver: string;
+}
+
 /**
- * The ONLY path by which a real order reaches the venue. Called exclusively
- * on a PASS verdict. VETOs and un-actioned ESCALATEs never reach this
- * function, which is exactly what the audit log proves: a vetoed proposal
- * has no EXECUTION_ATTEMPTED entry at all.
+ * The ONLY path by which a real order reaches the venue. Runs on a PASS,
+ * or on an ESCALATE that carries a real approval. VETOs and un-approved
+ * ESCALATEs never reach the venue, which is exactly what the audit log
+ * proves: such a proposal has no EXECUTION_ATTEMPTED entry at all.
  */
-export async function executeProposal(venue: ExecutionVenue, proposal: Proposal, verdict: Verdict): Promise<OrderResult> {
-  if (verdict.decision !== "PASS") {
-    throw new Error(`Refusing to execute proposal ${proposal.id}: verdict was ${verdict.decision}, not PASS`);
+export async function executeProposal(
+  venue: ExecutionVenue,
+  proposal: Proposal,
+  verdict: Verdict,
+  approval?: ApprovalRef
+): Promise<OrderResult> {
+  // PASS executes on its own. ESCALATE executes only with a real approval attached.
+  const allowed = verdict.decision === "PASS" || (verdict.decision === "ESCALATE" && approval !== undefined);
+  if (!allowed) {
+    throw new Error(`Refusing to execute proposal ${proposal.id}: verdict was ${verdict.decision}, not PASS or an approved ESCALATE`);
   }
 
   const order: OrderRequest = {
@@ -28,6 +40,7 @@ export async function executeProposal(venue: ExecutionVenue, proposal: Proposal,
     verdictId: verdict.id,
     order,
     notionalUsd: verdict.simulation.notionalUsd,
+    ...(approval ? { approvalId: approval.approvalId, approvedBy: approval.approver } : {}),
   });
 
   let result: OrderResult;
@@ -53,6 +66,7 @@ export async function executeProposal(venue: ExecutionVenue, proposal: Proposal,
     cummulativeQuoteQty: result.cummulativeQuoteQty,
     fills: result.fills,
     notionalUsd: verdict.simulation.notionalUsd,
+    ...(approval ? { approvalId: approval.approvalId, approvedBy: approval.approver } : {}),
   });
 
   return result;

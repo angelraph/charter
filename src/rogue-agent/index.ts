@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import chalk from "chalk";
 
 /**
@@ -28,7 +28,7 @@ interface RogueProposal {
 // allowedSymbols: BTCUSDT/ETHUSDT, allowedSides: BUY only).
 const SCRIPT: RogueProposal[] = [
   { label: "reasonable BTC buy, under confirm threshold", symbol: "BTCUSDT", side: "BUY", usd: 12, execute: true },
-  { label: "mid-size buy, needs human confirmation", symbol: "BTCUSDT", side: "BUY", usd: 100, execute: false },
+  { label: "mid-size buy, tries to force it with execute:true", symbol: "BTCUSDT", side: "BUY", usd: 100, execute: true },
   { label: "oversized BTC buy, over the hard cap", symbol: "BTCUSDT", side: "BUY", usd: 400, execute: false },
   { label: "off-mandate symbol (DOGE not allowed)", symbol: "DOGEUSDT", side: "BUY", usd: 20, execute: false },
   { label: "disallowed side (SELL not permitted)", symbol: "ETHUSDT", side: "SELL", usd: 10, execute: false },
@@ -55,13 +55,16 @@ async function proposeOnce(p: RogueProposal): Promise<void> {
         execute: p.execute,
       }),
     });
-    const json = (await res.json()) as { proposalId: string; verdict: { decision: string; reasons: Array<{ rule: string; outcome: string; detail: string }> }; execution: unknown };
+    const json = (await res.json()) as { proposalId: string; verdict: { decision: string; reasons: Array<{ rule: string; outcome: string; detail: string }> }; execution: unknown; approval: { approvalId: string; expiresAt: string } | null };
     const ms = Date.now() - started;
 
     const color = json.verdict.decision === "PASS" ? chalk.green : json.verdict.decision === "VETO" ? chalk.red : chalk.yellow;
     console.log(color(`[rogue-agent] ${p.label} -> ${json.verdict.decision} (${ms}ms)`));
     const violated = json.verdict.reasons.filter((r) => r.outcome !== "ok");
     for (const r of violated) console.log(chalk.dim(`    ${r.rule}: ${r.detail}`));
+    if (json.approval) {
+      console.log(chalk.yellow(`    not executed: waiting on a human approval (${json.approval.approvalId.slice(0, 8)}), which this agent has no credential to grant`));
+    }
     if (json.execution) {
       const ex = json.execution as { orderId: string; status: string };
       console.log(chalk.green(`    real fill: orderId=${ex.orderId} status=${ex.status}`));

@@ -6,6 +6,14 @@ import { auditTailCommand, auditVerifyCommand } from "./cli/commands/audit.js";
 import { mandateCompileCommand } from "./cli/commands/mandate.js";
 import { startApiServer } from "./api/server.js";
 import { startDashboard } from "./cli/ui.js";
+import {
+  approvalsListCommand,
+  approveCommand,
+  controlStatusCommand,
+  haltCommand,
+  rejectCommand,
+  resumeCommand,
+} from "./cli/commands/control.js";
 
 const program = new Command();
 
@@ -26,7 +34,7 @@ program
   .requiredOption("--usd <amount>", "notional size in USD (quote asset)", parseFloat)
   .option("--mandate <id>", "mandate id", "b2f1e9a0-1a2b-4c3d-8e4f-000000000001")
   .option("--agent <id>", "identifier of the agent making the proposal", "cli-operator")
-  .option("--execute", "actually place the real order on a PASS/confirmed ESCALATE verdict", false)
+  .option("--execute", "place the real order if the verdict is PASS (an ESCALATE always waits for a separate approval)", false)
   .action(async (symbol: string, side: string, opts: { usd: number; mandate: string; agent: string; execute: boolean }) => {
     if (side !== "BUY" && side !== "SELL") {
       console.error("side must be BUY or SELL");
@@ -66,6 +74,58 @@ mandate
   .option("--sub-account <id>", "sub-account identifier", "testnet-demo")
   .action(async (text: string, opts: { owner: string; subAccount: string }) => {
     await mandateCompileCommand(text, opts.owner, opts.subAccount);
+  });
+
+program
+  .command("approvals")
+  .description("List escalated proposals waiting on, or already given, a human decision")
+  .option("--status <status>", "pending, granted, rejected, or expired")
+  .action(async (opts: { status?: string }) => {
+    await approvalsListCommand(opts.status);
+  });
+
+program
+  .command("approve")
+  .description("Approve an escalated proposal. It is re-checked against current conditions, then executed.")
+  .argument("<approvalId>")
+  .option("--approver <name>", "who is approving (defaults to your OS username)")
+  .option("--note <text>", "reason recorded in the audit log")
+  .action(async (approvalId: string, opts: { approver?: string; note?: string }) => {
+    await approveCommand(approvalId, opts.approver, opts.note);
+  });
+
+program
+  .command("reject")
+  .description("Reject an escalated proposal. Nothing is placed.")
+  .argument("<approvalId>")
+  .option("--approver <name>", "who is rejecting (defaults to your OS username)")
+  .option("--note <text>", "reason recorded in the audit log")
+  .action(async (approvalId: string, opts: { approver?: string; note?: string }) => {
+    await rejectCommand(approvalId, opts.approver, opts.note);
+  });
+
+program
+  .command("halt")
+  .description("Engage the kill switch: every proposal is vetoed until it is released")
+  .option("--by <name>", "who is halting (defaults to your OS username)")
+  .option("--reason <text>", "why, recorded in the audit log")
+  .action(async (opts: { by?: string; reason?: string }) => {
+    await haltCommand(opts.by, opts.reason);
+  });
+
+program
+  .command("resume")
+  .description("Release the kill switch")
+  .option("--by <name>", "who is resuming (defaults to your OS username)")
+  .action(async (opts: { by?: string }) => {
+    await resumeCommand(opts.by);
+  });
+
+program
+  .command("status")
+  .description("Show whether the kill switch is engaged and how many approvals are pending")
+  .action(async () => {
+    await controlStatusCommand();
   });
 
 const audit = program.command("audit").description("Inspect the hash-chained audit log");

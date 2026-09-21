@@ -13,7 +13,7 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
   console.log(`\n${opts.agentId} wants to ${opts.side} $${opts.usd} of ${opts.symbol}`);
   console.log("Simulating against live order book...");
 
-  const { verdict, execution } = await runProposal({
+  const { verdict, execution, approval } = await runProposal({
     agentId: opts.agentId,
     mandateId: opts.mandateId,
     symbol: opts.symbol,
@@ -51,8 +51,15 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
     return;
   }
 
-  if (verdict.decision === "ESCALATE") {
-    console.log("\nESCALATE. This proposal crosses the confirm-above threshold and needs explicit human sign-off. Re-run with --execute to confirm and place the real order.");
+  if (verdict.decision === "ESCALATE" && approval) {
+    console.log(
+      `\nESCALATE. This proposal crosses the confirm-above threshold, so it is waiting on a human approval. ` +
+        `Nothing was placed, and --execute does not bypass this.\n` +
+        `  approval id: ${approval.approvalId}\n` +
+        `  expires:     ${approval.expiresAt}\n` +
+        `A different person approves it with:\n` +
+        `  charter approve ${approval.approvalId} --approver <name>`
+    );
   } else {
     console.log("\nPASS. Re-run with --execute to actually place the real order.");
   }

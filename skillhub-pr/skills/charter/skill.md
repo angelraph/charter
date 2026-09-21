@@ -1,4 +1,4 @@
----
+﻿---
 name: charter
 description: Submit a proposed trade to CHARTER for a real PASS/VETO/ESCALATE mandate-compliance verdict, simulated against live market data, before it executes.
 version: 0.1.0
@@ -61,6 +61,16 @@ Check a previously submitted proposal.
 curl -s http://localhost:4477/status/<proposalId>
 ```
 
+### charter.escalation
+
+After an ESCALATE, poll the outcome of your own approval. You get the status only, never the proposal detail.
+
+```bash
+curl -s http://localhost:4477/escalations/<approvalId>
+```
+
+`status` is `pending`, `granted`, `rejected`, or `expired`. Approving and rejecting are done by a person, not by this skill.
+
 ### charter.mandate
 
 Read the currently active covenant and its limits.
@@ -73,7 +83,7 @@ curl -s "http://localhost:4477/mandate?id=<mandate-id>"
 
 - **PASS**: every rule satisfied. Execution proceeds automatically if `execute: true` was set.
 - **VETO**: at least one rule was violated (oversized order, disallowed symbol, drawdown halt tripped, and so on). No order is ever placed for a VETO. CHARTER's audit log shows no execution attempt at all for a vetoed proposal.
-- **ESCALATE**: no rule was violated, but the order crosses the mandate's `confirmAboveUsd` threshold. CHARTER will not execute this without an explicit `execute: true` on a follow-up call, standing in for a human's confirmation.
+- **ESCALATE**: no rule was violated, but the order crosses the mandate's `confirmAboveUsd` threshold. Nothing is executed, and `execute: true` does not change that. The response carries an `approval` object with an `approvalId`. A person holding a separate approver credential has to approve it, and the proposal is checked again against current conditions at that moment. The agent that proposed it cannot approve it.
 
 ## What CHARTER will not do
 

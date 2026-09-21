@@ -7,6 +7,8 @@ import { checkSymbolAllowlist } from "./rules/symbolAllowlist.js";
 import { checkMaxSlippage } from "./rules/maxSlippage.js";
 import { checkLeverageLimit } from "./rules/leverageLimit.js";
 import { checkDrawdownHalt } from "./rules/drawdownHalt.js";
+import { checkKillSwitch } from "./rules/killSwitch.js";
+import type { KillSwitchState } from "../approval/state.js";
 import { randomUUID } from "node:crypto";
 
 /**
@@ -19,9 +21,11 @@ export function evaluateProposal(
   mandate: Mandate,
   simulation: SimulationResult,
   todaysFilledEntries: AuditEntry[],
-  navContext: { currentNavUsd: number; startOfDayNavUsd: number }
+  navContext: { currentNavUsd: number; startOfDayNavUsd: number },
+  killSwitch?: KillSwitchState
 ): Verdict {
   const reasons: RuleResult[] = [
+    checkKillSwitch(killSwitch),
     checkSymbolAllowlist(proposal, mandate),
     checkSpendingCap(proposal, mandate, simulation, todaysFilledEntries),
     checkMaxSlippage(simulation, mandate),

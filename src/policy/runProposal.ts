@@ -1,12 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { activeVenue, marketDataBaseUrl } from "../venues/index.js";
+import { activeVenue } from "../venues/index.js";
 import { loadMandate } from "../mandate/store.js";
 import { ProposalSchema, type Proposal, type Verdict } from "./types.js";
-import { simulateProposal } from "../market/simulator.js";
-import { computeApproxNavUsd } from "../market/nav.js";
-import { getOrCreateStartOfDayNav } from "../mandate/navSnapshot.js";
-import { evaluateProposal } from "./engine.js";
+import { assessProposal } from "./assess.js";
 import { executeProposal } from "../execution/adapter.js";
+import { requestApproval } from "../approval/service.js";
 import { auditLog } from "../audit/log.js";
 import type { OrderResult } from "../venues/types.js";
 
@@ -17,7 +15,7 @@ export interface RunProposalInput {
   side: "BUY" | "SELL";
   usd: number;
   reason?: string;
-  /** Execute a real order on PASS, or on ESCALATE when the caller is standing in as the human confirmation. */
+  /** Place the real order if the verdict is PASS. Has no effect on an ESCALATE, which always waits for a separate human approval. */
   execute: boolean;
 }
 
@@ -25,18 +23,15 @@ export interface RunProposalResult {
   proposal: Proposal;
   verdict: Verdict;
   execution?: OrderResult;
-}
-
-function todayStartIso(): string {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
+  /** Present when the verdict is ESCALATE: the pending approval a human must act on. */
+  approval?: { approvalId: string; expiresAt: string };
 }
 
 /**
- * The single real pipeline every entry point (CLI `propose`, the local
- * HTTP API, the rogue-agent demo client) runs through: real simulation,
- * real policy evaluation, real execution on PASS. No caller bypasses this.
+ * The single real pipeline every entry point (CLI `propose`, the HTTP API,
+ * the rogue-agent demo client) runs through: real simulation, real policy
+ * evaluation, and real execution only on a PASS. An ESCALATE opens a pending
+ * approval that a different person must grant; it can never execute here.
  */
 export async function runProposal(input: RunProposalInput): Promise<RunProposalResult> {
   const mandate = await loadMandate(input.mandateId);
@@ -55,33 +50,21 @@ export async function runProposal(input: RunProposalInput): Promise<RunProposalR
 
   await auditLog.append("PROPOSAL_RECEIVED", activeVenue.name, { proposal });
 
-  const navUsd = await computeApproxNavUsd(activeVenue, marketDataBaseUrl());
-  const simulation = await simulateProposal(activeVenue, proposal, navUsd);
-
-  const todaysEntries = (await auditLog.all()).filter((e) => e.type === "EXECUTION_FILLED" && e.timestamp >= todayStartIso());
-  const startOfDayNavUsd = await getOrCreateStartOfDayNav(activeVenue, marketDataBaseUrl());
-  const verdict = evaluateProposal(proposal, mandate, simulation, todaysEntries, { currentNavUsd: navUsd, startOfDayNavUsd });
-  await auditLog.append("VERDICT_ISSUED", activeVenue.name, { verdict });
+  const verdict = await assessProposal(proposal, mandate);
 
   if (verdict.decision === "VETO") {
     return { proposal, verdict };
   }
-  if (verdict.decision === "ESCALATE" && !input.execute) {
-    return { proposal, verdict };
-  }
-  if (verdict.decision === "PASS" && !input.execute) {
-    return { proposal, verdict };
-  }
 
   if (verdict.decision === "ESCALATE") {
-    // input.execute === true here means a human explicitly confirmed this above-threshold trade.
-    await auditLog.append("EXECUTION_CONFIRMED", activeVenue.name, {
-      proposalId: proposal.id,
-      verdictId: verdict.id,
-      note: "ESCALATE threshold crossed; human confirmation supplied via --execute",
-    });
+    const approval = await requestApproval(proposal, verdict);
+    return { proposal, verdict, approval };
   }
 
-  const execution = await executeProposal(activeVenue, proposal, { ...verdict, decision: "PASS" });
+  if (!input.execute) {
+    return { proposal, verdict };
+  }
+
+  const execution = await executeProposal(activeVenue, proposal, verdict);
   return { proposal, verdict, execution };
 }
