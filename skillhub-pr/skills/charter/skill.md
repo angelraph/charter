@@ -1,4 +1,4 @@
-﻿---
+---
 name: charter
 description: Submit a proposed trade to CHARTER for a real PASS/VETO/ESCALATE mandate-compliance verdict, simulated against live market data, before it executes.
 version: 0.1.0

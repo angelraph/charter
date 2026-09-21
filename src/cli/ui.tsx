@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { render, Box, Text } from "ink";
 import { activeVenue, marketDataBaseUrl } from "../venues/index.js";
 import { computeApproxNavUsd } from "../market/nav.js";

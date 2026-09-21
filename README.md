@@ -1,4 +1,4 @@
-﻿# CHARTER
+# CHARTER
 
 CHARTER is a mandate and policy layer for AI trading agents on Binance. It is not a trading agent itself. Other agents' trade proposals have to pass through it before they can reach a Binance Agentic sub-account.
 

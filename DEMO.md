@@ -1,4 +1,4 @@
-﻿# CHARTER demo runbook
+# CHARTER demo runbook
 
 A shot-by-shot script for the submission video. Every command here is real: it runs against the actual testnet venue, no fixtures or canned output. Run these in order, in a clean terminal, at a font size that reads well on video.
 
