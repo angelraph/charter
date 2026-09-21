@@ -89,6 +89,49 @@ CHARTER only enforces anything if the agent has to go through it. It is a real b
 
 What that setup protects against: an agent exceeding its limits, an agent approving its own escalation, replaying or double-executing an approval, acting on a stale approval, and tampering with the record afterward (detectable). What it does not protect against: someone with write access to the audit file who also recomputes every hash, a compromised CHARTER host, or an approver who approves something bad. The CLI runs with local access to the log, so the OS username is the identity it records. The API identity is whatever the holder of the approver key claims in `X-Charter-Approver`. There is still one shared approver key, so approvers are told apart by the name they claim, not by separate credentials. The full list of what is and is not defended against is in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
+## Rules
+
+Every proposal is checked against all of these, and every result is returned in the verdict. A `violated` rule is a veto. A `warning` is an escalation.
+
+| Rule | What it checks | Set in the mandate by |
+| --- | --- | --- |
+| `killSwitch` | Trading is not halted | `charter halt` |
+| `symbolAllowlist` | Symbol and side are permitted | `allowedSymbols`, `blockedSymbols`, `allowedSides` |
+| `perTradeMaxUsd` and `dailySpendCapUsd` | Size of this trade, and today's total, counting resting orders | `perTradeMaxUsd`, `dailySpendCapUsd` |
+| `perSymbolDailyCapUsd` | Today's total in this one symbol, across all agents | `perSymbolDailyCapUsd` |
+| `maxTradesPerHour` | How many trades this agent has executed in the last hour | `maxTradesPerHour` |
+| `cooldownSeconds` | Time since this agent last traded this symbol | `cooldownSeconds` |
+| `maxLimitDeviationPct` | A limit price is not a likely typo (default 5%) | `maxLimitDeviationPct` |
+| `maxOpenOrders` | How many CHARTER limit orders are resting | `maxOpenOrders` |
+| `sellWithinHoldings` | A sell is covered by what the account holds | always on for sells |
+| `maxSlippageBps` | Projected slippage from the live order book | `maxSlippageBps` |
+| `maxLeverage` | No more leverage than allowed | `maxLeverage` |
+| `dailyDrawdownHaltPct` | The account is not down more than the limit today | `dailyDrawdownHaltPct` |
+| `confirmAboveUsd` | Bigger than this needs a human, so it escalates | `confirmAboveUsd` |
+
+The rules that depend on history (spend, trade rate, cooldown, per-symbol total) read the audit log rather than keep counters. A rule that needs information it could not get, such as holdings for a sell, refuses the trade instead of assuming it is fine.
+
+## Order types
+
+```bash
+npx tsx src/index.ts propose BTCUSDT BUY --usd 50
+npx tsx src/index.ts propose BTCUSDT BUY --type LIMIT --qty 0.001 --limit-price 78000
+```
+
+A MARKET order is sized in USD. A LIMIT order is sized in units and a price, and is simulated against the book: whatever can fill at that price or better is projected as a fill, and the rest is reported as resting. A resting order is logged as placed rather than filled, and counts against the spend caps because it can still fill. Quantities and prices are rounded down to the exchange's step and tick sizes, so an order is never larger than what was approved, and one below the minimum is refused before it is sent.
+
+```bash
+npx tsx src/index.ts orders
+npx tsx src/index.ts cancel BTCUSDT <orderId>
+npx tsx src/index.ts halt --cancel-open
+```
+
+CHARTER only ever lists or cancels orders it placed itself, identified by their client order id.
+
+## Portfolio value
+
+The drawdown halt and the NAV impact in a verdict use the value of the whole account. Every holding is priced through its USDT pair, or through a BTC, ETH, or BNB pair if it has none, and fiat is priced through its inverse pair. Anything with no route to a dollar price is left out of the total and reported, not guessed. On the testnet account this replaced a hand-picked list of eight assets that captured about a third of the account's value. A drawdown baseline recorded under an older method is ignored, so two methods are never compared against each other.
+
 ## Verdict reasons
 
 A verdict is never a bare PASS, VETO, or ESCALATE label. Every `Verdict` carries a `reasons` array with one entry per policy rule that ran, each shaped as `{ rule, outcome, detail }` (`outcome` is `"ok"`, `"warning"`, or `"violated"`). This is the structured attribution behind the decision: which specific rule drove it, and why, not just the final outcome. It's produced by `evaluateProposal` in `src/policy/engine.ts`, which runs every rule and always returns the full result set regardless of decision; the shape itself is `RuleResult` in `src/policy/types.ts`.

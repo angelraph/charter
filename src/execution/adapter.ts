@@ -38,6 +38,8 @@ export async function executeProposal(
   await auditLog.append("EXECUTION_ATTEMPTED", venue.name, {
     proposalId: proposal.id,
     verdictId: verdict.id,
+    agentId: proposal.agentId,
+    symbol: proposal.symbol,
     order,
     notionalUsd: verdict.simulation.notionalUsd,
     ...(approval ? { approvalId: approval.approvalId, approvedBy: approval.approver } : {}),
@@ -55,9 +57,23 @@ export async function executeProposal(
     throw err;
   }
 
-  await auditLog.append("EXECUTION_FILLED", venue.name, {
+  // An order that ended with nothing executed (expired, cancelled) committed nothing.
+  const stillOpen = result.status === "NEW" || result.status === "PARTIALLY_FILLED";
+  if (!stillOpen && result.status !== "FILLED" && result.executedQty === 0) {
+    await auditLog.append("EXECUTION_REJECTED_BY_PLATFORM", venue.name, {
+      proposalId: proposal.id,
+      verdictId: verdict.id,
+      error: `Order ended ${result.status} with nothing executed`,
+    });
+    return result;
+  }
+
+  // A resting limit order has not filled, but it still can, so it is logged as
+  // placed and counted against the caps the same way a fill is.
+  await auditLog.append(stillOpen ? "EXECUTION_PLACED" : "EXECUTION_FILLED", venue.name, {
     proposalId: proposal.id,
     verdictId: verdict.id,
+    agentId: proposal.agentId,
     orderId: result.orderId,
     symbol: result.symbol,
     side: result.side,

@@ -50,6 +50,19 @@ export interface OrderResult {
   raw: unknown;
 }
 
+export interface OpenOrder {
+  orderId: string;
+  symbol: string;
+  side: OrderSide;
+  type: string;
+  price: number;
+  origQty: number;
+  executedQty: number;
+  status: string;
+  clientOrderId: string;
+  time: number;
+}
+
 export type VenueName = "testnet" | "mainnet-mcp";
 
 export interface ExecutionVenue {
@@ -58,4 +71,7 @@ export interface ExecutionVenue {
   getDepth(symbol: string, limit?: number): Promise<OrderBook>;
   placeOrder(order: OrderRequest): Promise<OrderResult>;
   getOrder(symbol: string, orderId: string): Promise<OrderResult>;
+  /** Orders currently resting on the book for this account, optionally for one symbol. */
+  getOpenOrders(symbol?: string): Promise<OpenOrder[]>;
+  cancelOrder(symbol: string, orderId: string): Promise<OrderResult>;
 }

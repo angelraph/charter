@@ -14,8 +14,17 @@ export const MandateLimitsSchema = z.object({
   allowedSymbols: z.array(z.string()).optional(),
   blockedSymbols: z.array(z.string()).optional(),
   allowedSides: z.array(z.enum(["BUY", "SELL"])).optional(),
-  maxOpenPositions: z.number().int().positive().optional(),
   maxSlippageBps: z.number().positive().optional(),
+  /** Cap on total notional per symbol per UTC day, across all agents. */
+  perSymbolDailyCapUsd: z.number().positive().optional(),
+  /** Most trades one agent may have executed in any rolling hour. */
+  maxTradesPerHour: z.number().int().positive().optional(),
+  /** Minimum seconds between two executed trades by the same agent in the same symbol. */
+  cooldownSeconds: z.number().positive().optional(),
+  /** Most CHARTER-placed limit orders that may be resting on the book at once. */
+  maxOpenOrders: z.number().int().positive().optional(),
+  /** A limit price further than this from the market is refused as a likely fat-finger. Defaults to 5. */
+  maxLimitDeviationPct: z.number().positive().max(100).optional(),
 });
 
 export const MandateSchema = z.object({

@@ -1,6 +1,6 @@
 import { auditLog, type AuditEntry } from "../audit/log.js";
 import type { ExecutionVenue } from "../venues/types.js";
-import { computeApproxNavUsd } from "../market/nav.js";
+import { NAV_METHOD, computeApproxNavUsd } from "../market/nav.js";
 
 function todayStartIso(): string {
   const d = new Date();
@@ -13,17 +13,24 @@ function todayStartIso(): string {
  * NAV_SNAPSHOT has been recorded yet today, computes one from the venue
  * right now and logs it, so the very first proposal of the day sets the
  * baseline everything else is measured against.
+ *
+ * A snapshot only counts if it was taken with the current NAV method. One
+ * taken with an older method (or none recorded) is ignored, because
+ * comparing a number from one method against a baseline from another would
+ * report a swing that is really just the two methods disagreeing.
  */
 export async function getOrCreateStartOfDayNav(venue: ExecutionVenue, marketBaseUrl: string): Promise<number> {
   const todayStart = todayStartIso();
   const entries = await auditLog.all();
-  const todaysSnapshot = entries.find((e: AuditEntry) => e.type === "NAV_SNAPSHOT" && e.timestamp >= todayStart);
+  const todaysSnapshot = entries.find(
+    (e: AuditEntry) => e.type === "NAV_SNAPSHOT" && e.timestamp >= todayStart && (e.payload as { method?: string }).method === NAV_METHOD
+  );
 
   if (todaysSnapshot) {
     return (todaysSnapshot.payload as { navUsd: number }).navUsd;
   }
 
   const navUsd = await computeApproxNavUsd(venue, marketBaseUrl);
-  await auditLog.append("NAV_SNAPSHOT", venue.name, { navUsd, reason: "start-of-day baseline" });
+  await auditLog.append("NAV_SNAPSHOT", venue.name, { navUsd, method: NAV_METHOD, reason: "start-of-day baseline" });
   return navUsd;
 }

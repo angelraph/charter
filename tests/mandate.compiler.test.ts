@@ -77,3 +77,25 @@ describe("parseCompilerOutput", () => {
     expect(result.confirmAboveUsd).toBe(49.99);
   });
 });
+
+describe("parseCompilerOutput with the newer limits", () => {
+  it("accepts and keeps the optional activity and order limits", () => {
+    const result = parseCompilerOutput(
+      JSON.stringify({ ...VALID, perSymbolDailyCapUsd: 500, maxTradesPerHour: 4, cooldownSeconds: 60, maxOpenOrders: 2, maxLimitDeviationPct: 3 })
+    );
+    expect(result).toMatchObject({ perSymbolDailyCapUsd: 500, maxTradesPerHour: 4, cooldownSeconds: 60, maxOpenOrders: 2, maxLimitDeviationPct: 3 });
+  });
+
+  it("treats null for them as not set", () => {
+    const result = parseCompilerOutput(JSON.stringify({ ...VALID, perSymbolDailyCapUsd: null, maxTradesPerHour: null, cooldownSeconds: null, maxOpenOrders: null, maxLimitDeviationPct: null }));
+    expect(result.maxTradesPerHour).toBeUndefined();
+    expect(result.cooldownSeconds).toBeUndefined();
+  });
+
+  it("refuses values that make no sense", () => {
+    expect(() => parseCompilerOutput(JSON.stringify({ ...VALID, maxTradesPerHour: 0 }))).toThrow("failed validation");
+    expect(() => parseCompilerOutput(JSON.stringify({ ...VALID, maxTradesPerHour: 2.5 }))).toThrow("failed validation");
+    expect(() => parseCompilerOutput(JSON.stringify({ ...VALID, maxLimitDeviationPct: 150 }))).toThrow("failed validation");
+    expect(() => parseCompilerOutput(JSON.stringify({ ...VALID, cooldownSeconds: -5 }))).toThrow("failed validation");
+  });
+});
