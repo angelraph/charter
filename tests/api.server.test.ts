@@ -32,6 +32,11 @@ vi.mock("../src/venues/index.js", () => ({ activeVenue: { name: "testnet" }, mar
 vi.mock("../src/policy/assess.js", () => ({ assessProposal: vi.fn() }));
 vi.mock("../src/execution/adapter.js", () => ({ executeProposal: vi.fn() }));
 vi.mock("../src/policy/runProposal.js", () => ({ runProposal: vi.fn() }));
+vi.mock("../src/execution/orders.js", () => ({
+  listOpenCharterOrders: vi.fn(async () => [{ orderId: "1", symbol: "BTCUSDT" }]),
+  cancelCharterOrder: vi.fn(),
+  cancelAllCharterOrders: vi.fn(async () => ({ cancelled: [{}, {}], failed: [] })),
+}));
 vi.mock("../src/approval/service.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/approval/service.js")>();
   return {
@@ -326,5 +331,85 @@ describe("per-agent keys", () => {
     const key = await agentWithKey("alpha", [mandateA]);
     const res = await fetch(`${base}/control/halt`, { method: "POST", headers: { ...json, "X-Charter-Api-Key": key }, body: "{}" });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("order types in requests", () => {
+  const post = (body: Record<string, unknown>) =>
+    fetch(`${base}/propose`, { method: "POST", headers: { ...json, ...AGENT }, body: JSON.stringify({ agentId: "a", mandateId: uuid, symbol: "BTCUSDT", side: "BUY", ...body }) });
+
+  const passed = () => vi.mocked(runProposal).mockResolvedValue({ proposal: { id: "p1", agentId: "a" }, verdict: { decision: "PASS" } } as never);
+
+  it("accepts a LIMIT proposal sized by quantity and price and passes it through", async () => {
+    passed();
+    const res = await post({ type: "LIMIT", quantity: 0.001, limitPrice: 70000 });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(runProposal).mock.calls[0]![0]).toMatchObject({ type: "LIMIT", quantity: 0.001, limitPrice: 70000 });
+  });
+
+  it("refuses a LIMIT proposal with no price", async () => {
+    const res = await post({ type: "LIMIT", quantity: 0.001 });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("limitPrice");
+    expect(runProposal).not.toHaveBeenCalled();
+  });
+
+  it("refuses a LIMIT proposal with no quantity", async () => {
+    expect((await post({ type: "LIMIT", limitPrice: 70000 })).status).toBe(400);
+  });
+
+  it("refuses a LIMIT proposal sized in USD, which would be ambiguous", async () => {
+    expect((await post({ type: "LIMIT", quantity: 1, limitPrice: 1, usd: 100 })).status).toBe(400);
+  });
+
+  it("refuses a MARKET proposal with no size", async () => {
+    expect((await post({})).status).toBe(400);
+  });
+
+  it("defaults to MARKET, sized in USD", async () => {
+    passed();
+    expect((await post({ usd: 15 })).status).toBe(200);
+    expect(vi.mocked(runProposal).mock.calls[0]![0]).toMatchObject({ type: "MARKET", usd: 15 });
+  });
+
+  it("turns a validation error from the pipeline into a 400, not a 500", async () => {
+    const { z } = await import("zod");
+    vi.mocked(runProposal).mockRejectedValue(new z.ZodError([{ code: "custom", message: "bad", path: [] }]));
+    expect((await post({ usd: 15 })).status).toBe(400);
+  });
+});
+
+describe("resting-order controls", () => {
+  it("lists resting orders only with the approver key", async () => {
+    expect((await fetch(`${base}/control/orders`, { headers: AGENT })).status).toBe(401);
+    const ok = await fetch(`${base}/control/orders`, { headers: APPROVER });
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as unknown[]).length).toBe(1);
+  });
+
+  it("halt with cancelOpen also cancels resting orders and reports how many", async () => {
+    vi.mocked(service.engageKillSwitch).mockResolvedValue({ engaged: true } as never);
+    const orders = await import("../src/execution/orders.js");
+    const res = await fetch(`${base}/control/halt`, { method: "POST", headers: { ...json, ...APPROVER }, body: JSON.stringify({ reason: "drill", cancelOpen: true }) });
+    const body = (await res.json()) as { cancelled: number };
+    expect(res.status).toBe(200);
+    expect(body.cancelled).toBe(2);
+    expect(orders.cancelAllCharterOrders).toHaveBeenCalled();
+  });
+
+  it("halt without cancelOpen leaves resting orders alone", async () => {
+    vi.mocked(service.engageKillSwitch).mockResolvedValue({ engaged: true } as never);
+    const orders = await import("../src/execution/orders.js");
+    vi.mocked(orders.cancelAllCharterOrders).mockClear();
+    await fetch(`${base}/control/halt`, { method: "POST", headers: { ...json, ...APPROVER }, body: JSON.stringify({ reason: "drill" }) });
+    expect(orders.cancelAllCharterOrders).not.toHaveBeenCalled();
+  });
+
+  it("cancelling an order needs the approver key and names who did it", async () => {
+    const orders = await import("../src/execution/orders.js");
+    expect((await fetch(`${base}/control/orders/BTCUSDT/9/cancel`, { method: "POST", headers: { ...json, ...AGENT }, body: "{}" })).status).toBe(401);
+    const res = await fetch(`${base}/control/orders/BTCUSDT/9/cancel`, { method: "POST", headers: { ...json, ...APPROVER }, body: "{}" });
+    expect(res.status).toBe(200);
+    expect(orders.cancelCharterOrder).toHaveBeenCalledWith(expect.anything(), "BTCUSDT", "9", "alice");
   });
 });

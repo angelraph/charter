@@ -10,8 +10,10 @@ import { agentAddCommand, agentListCommand, agentRevokeCommand, agentRotateComma
 import {
   approvalsListCommand,
   approveCommand,
+  cancelCommand,
   controlStatusCommand,
   haltCommand,
+  ordersCommand,
   rejectCommand,
   resumeCommand,
 } from "./cli/commands/control.js";
@@ -27,24 +29,53 @@ program
     await initCommand();
   });
 
+interface ProposeCliOptions {
+  usd?: number;
+  type: string;
+  qty?: number;
+  limitPrice?: number;
+  mandate: string;
+  agent: string;
+  execute: boolean;
+}
+
 program
   .command("propose")
   .description("Submit a trade proposal for a PASS/VETO/ESCALATE verdict, optionally executing it")
   .argument("<symbol>", "e.g. BTCUSDT")
   .argument("<side>", "BUY or SELL")
-  .requiredOption("--usd <amount>", "notional size in USD (quote asset)", parseFloat)
+  .option("--usd <amount>", "MARKET: how much to trade, in USD", parseFloat)
+  .option("--type <type>", "MARKET or LIMIT", "MARKET")
+  .option("--qty <amount>", "LIMIT: how much of the asset", parseFloat)
+  .option("--limit-price <price>", "LIMIT: the price", parseFloat)
   .option("--mandate <id>", "mandate id", "b2f1e9a0-1a2b-4c3d-8e4f-000000000001")
   .option("--agent <id>", "identifier of the agent making the proposal", "cli-operator")
   .option("--execute", "place the real order if the verdict is PASS (an ESCALATE always waits for a separate approval)", false)
-  .action(async (symbol: string, side: string, opts: { usd: number; mandate: string; agent: string; execute: boolean }) => {
+  .action(async (symbol: string, side: string, opts: ProposeCliOptions) => {
     if (side !== "BUY" && side !== "SELL") {
       console.error("side must be BUY or SELL");
+      process.exit(1);
+    }
+    const type = opts.type.toUpperCase();
+    if (type !== "MARKET" && type !== "LIMIT") {
+      console.error("--type must be MARKET or LIMIT");
+      process.exit(1);
+    }
+    if (type === "MARKET" && opts.usd === undefined) {
+      console.error("A MARKET proposal needs --usd");
+      process.exit(1);
+    }
+    if (type === "LIMIT" && (opts.qty === undefined || opts.limitPrice === undefined)) {
+      console.error("A LIMIT proposal needs --qty and --limit-price");
       process.exit(1);
     }
     await proposeCommand({
       symbol: symbol.toUpperCase(),
       side,
+      type,
       usd: opts.usd,
+      quantity: opts.qty,
+      limitPrice: opts.limitPrice,
       mandateId: opts.mandate,
       agentId: opts.agent,
       execute: opts.execute,
@@ -110,8 +141,27 @@ program
   .description("Engage the kill switch: every proposal is vetoed until it is released")
   .option("--by <name>", "who is halting (defaults to your OS username)")
   .option("--reason <text>", "why, recorded in the audit log")
-  .action(async (opts: { by?: string; reason?: string }) => {
-    await haltCommand(opts.by, opts.reason);
+  .option("--cancel-open", "also cancel every CHARTER order resting on the book", false)
+  .action(async (opts: { by?: string; reason?: string; cancelOpen: boolean }) => {
+    await haltCommand(opts.by, opts.reason, opts.cancelOpen);
+  });
+
+program
+  .command("orders")
+  .description("List CHARTER orders resting on the book")
+  .action(async () => {
+    await ordersCommand();
+  });
+
+program
+  .command("cancel")
+  .description("Cancel a resting CHARTER order")
+  .argument("<symbol>")
+  .argument("<orderId>")
+  .option("--by <name>", "who is cancelling (defaults to your OS username)")
+  .option("--reason <text>")
+  .action(async (symbol: string, orderId: string, opts: { by?: string; reason?: string }) => {
+    await cancelCommand(symbol, orderId, opts.by, opts.reason);
   });
 
 program
@@ -185,5 +235,7 @@ audit
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   console.error(`\nError: ${err instanceof Error ? err.message : String(err)}`);
-  process.exit(1);
+  // Not process.exit(): on Windows that can trip a libuv assertion while
+  // network handles are still closing. Setting the code lets the process drain.
+  process.exitCode = 1;
 });

@@ -52,6 +52,7 @@ function makeSimulation(overrides: Partial<SimulationResult> = {}): SimulationRe
     orderBookDepthSampledAt: new Date().toISOString(),
     liquidityInsufficient: false,
     unfilledUsd: 0,
+    restingUsd: 0,
     ...overrides,
   };
 }
@@ -155,5 +156,80 @@ describe("kill switch", () => {
     const absent = evaluateProposal(makeProposal(), makeMandate(), makeSimulation(), noFills, flatNav);
     expect(released.decision).toBe("PASS");
     expect(absent.decision).toBe("PASS");
+  });
+});
+
+describe("evaluateProposal with the new rules", () => {
+  const NOW = new Date("2026-09-21T12:00:00.000Z");
+  const filled = (agentId: string, symbol: string, notionalUsd: number, minutesAgo: number): AuditEntry => ({
+    seq: 0,
+    timestamp: new Date(NOW.getTime() - minutesAgo * 60_000).toISOString(),
+    type: "EXECUTION_FILLED",
+    venue: "testnet",
+    payload: { agentId, symbol, notionalUsd },
+    prevHash: "x",
+    hash: "y",
+  });
+
+  it("a trade-rate limit vetoes an otherwise clean proposal, naming the rule", () => {
+    const mandate = makeMandate({ maxTradesPerHour: 1 });
+    const verdict = evaluateProposal(makeProposal({ agentId: "alpha" }), mandate, makeSimulation(), noFills, flatNav, undefined, {
+      entries: [filled("alpha", "BTCUSDT", 15, 5)],
+      now: NOW,
+    });
+    expect(verdict.decision).toBe("VETO");
+    expect(verdict.reasons.find((r) => r.rule === "maxTradesPerHour")?.outcome).toBe("violated");
+  });
+
+  it("a cooldown and a per-symbol cap can each veto on their own", () => {
+    const entries = [filled("alpha", "BTCUSDT", 100, 1)];
+    const cool = evaluateProposal(makeProposal({ agentId: "alpha" }), makeMandate({ cooldownSeconds: 600 }), makeSimulation(), noFills, flatNav, undefined, { entries, now: NOW });
+    const cap = evaluateProposal(makeProposal({ agentId: "alpha" }), makeMandate({ perSymbolDailyCapUsd: 110 }), makeSimulation(), noFills, flatNav, undefined, { entries, now: NOW });
+    expect(cool.reasons.find((r) => r.rule === "cooldownSeconds")?.outcome).toBe("violated");
+    expect(cap.reasons.find((r) => r.rule === "perSymbolDailyCapUsd")?.outcome).toBe("violated");
+  });
+
+  it("a SELL with no holdings supplied is vetoed rather than assumed covered", () => {
+    const mandate = makeMandate({ allowedSides: ["BUY", "SELL"] });
+    const verdict = evaluateProposal(makeProposal({ side: "SELL" }), mandate, makeSimulation(), noFills, flatNav);
+    expect(verdict.decision).toBe("VETO");
+    expect(verdict.reasons.find((r) => r.rule === "sellWithinHoldings")?.outcome).toBe("violated");
+  });
+
+  it("a SELL covered by holdings passes", () => {
+    const mandate = makeMandate({ allowedSides: ["BUY", "SELL"] });
+    const verdict = evaluateProposal(makeProposal({ side: "SELL" }), mandate, makeSimulation({ notionalUsd: 15, referencePrice: 60000 }), noFills, flatNav, undefined, {
+      holdings: { BTC: 1 },
+    });
+    expect(verdict.decision).toBe("PASS");
+  });
+
+  it("a fat-fingered limit price is vetoed", () => {
+    const verdict = evaluateProposal(
+      makeProposal({ type: "LIMIT", limitPrice: 30000, quantity: 0.0005, quoteOrderQty: undefined }),
+      makeMandate(),
+      makeSimulation({ referencePrice: 60000, notionalUsd: 15 }),
+      noFills,
+      flatNav
+    );
+    expect(verdict.decision).toBe("VETO");
+    expect(verdict.reasons.find((r) => r.rule === "maxLimitDeviationPct")?.outcome).toBe("violated");
+  });
+
+  it("a limit order is refused when the open-order limit could not be verified", () => {
+    const verdict = evaluateProposal(
+      makeProposal({ type: "LIMIT", limitPrice: 60000, quantity: 0.00025, quoteOrderQty: undefined }),
+      makeMandate({ maxOpenOrders: 2 }),
+      makeSimulation({ referencePrice: 60000, notionalUsd: 15 }),
+      noFills,
+      flatNav
+    );
+    expect(verdict.decision).toBe("VETO");
+    expect(verdict.reasons.find((r) => r.rule === "maxOpenOrders")?.outcome).toBe("violated");
+  });
+
+  it("with none of the new limits set, a clean proposal still passes", () => {
+    const verdict = evaluateProposal(makeProposal(), makeMandate(), makeSimulation(), noFills, flatNav);
+    expect(verdict.decision).toBe("PASS");
   });
 });

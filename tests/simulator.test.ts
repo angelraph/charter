@@ -25,6 +25,12 @@ function makeVenue(depth: Partial<OrderBook>): ExecutionVenue {
     async getOrder(): Promise<OrderResult> {
       throw new Error("not used in this test");
     },
+    async getOpenOrders() {
+      return [];
+    },
+    async cancelOrder(): Promise<OrderResult> {
+      throw new Error("not used in this test");
+    },
   };
 }
 
@@ -105,5 +111,84 @@ describe("simulateProposal", () => {
     const venue = makeVenue({ asks: [{ price: 100, quantity: 1 }] });
     const result = await simulateProposal(venue, makeProposal({ quoteOrderQty: 50 }), 0);
     expect(result.projectedNavImpactPct).toBe(0);
+  });
+});
+
+describe("simulateProposal with LIMIT orders", () => {
+  const limitBuy = (limitPrice: number, quantity: number) => makeProposal({ type: "LIMIT", limitPrice, quantity, quoteOrderQty: undefined });
+
+  it("a limit BUY below the best ask rests entirely, with nothing filled at once", async () => {
+    const venue = makeVenue({ asks: [{ price: 100, quantity: 10 }] });
+    const r = await simulateProposal(venue, limitBuy(95, 2), 10000);
+    expect(r.notionalUsd).toBe(190);
+    expect(r.restingUsd).toBe(190);
+    expect(r.projectedFillPrice).toBe(95);
+    expect(r.projectedSlippageBps).toBe(0);
+    expect(r.liquidityInsufficient).toBe(false);
+  });
+
+  it("a marketable limit BUY fills at the touch and rests nothing", async () => {
+    const venue = makeVenue({ asks: [{ price: 100, quantity: 10 }] });
+    const r = await simulateProposal(venue, limitBuy(101, 1), 10000);
+    expect(r.projectedFillPrice).toBe(100);
+    expect(r.restingUsd).toBe(0);
+  });
+
+  it("only takes levels at or inside the limit, and rests the remainder", async () => {
+    const venue = makeVenue({
+      asks: [
+        { price: 100, quantity: 1 },
+        { price: 105, quantity: 1 },
+        { price: 120, quantity: 5 },
+      ],
+    });
+    // Limit 106 for 3 units: can take the 100 and 105 levels ($205), 1 unit remains at 106.
+    const r = await simulateProposal(venue, limitBuy(106, 3), 10000);
+    expect(r.notionalUsd).toBeCloseTo(318, 6);
+    expect(r.restingUsd).toBeCloseTo(106, 6); // the one unit left, valued at the limit price
+    expect(r.projectedFillPrice).toBeCloseTo(102.5, 6);
+    expect(r.liquidityInsufficient).toBe(false);
+  });
+
+  it("never fills more units than asked for, even when the book is cheaper than the limit", async () => {
+    // A dollar budget of 3 x 106 = $318 would buy 3.18 units at $100. The order is for exactly 3.
+    const venue = makeVenue({ asks: [{ price: 100, quantity: 10 }] });
+    const r = await simulateProposal(venue, limitBuy(106, 3), 10000);
+    expect(r.projectedFillPrice).toBe(100);
+    expect(r.restingUsd).toBe(0);
+    expect(r.liquidityInsufficient).toBe(false);
+  });
+
+  it("rests the unfilled units when the reachable book is too thin", async () => {
+    const venue = makeVenue({ asks: [{ price: 100, quantity: 1 }] });
+    const r = await simulateProposal(venue, limitBuy(101, 4), 10000);
+    expect(r.restingUsd).toBe(3 * 101);
+    expect(r.liquidityInsufficient).toBe(false);
+  });
+
+  it("a limit SELL above the best bid rests", async () => {
+    const venue = makeVenue({ bids: [{ price: 100, quantity: 10 }] });
+    const r = await simulateProposal(venue, makeProposal({ side: "SELL", type: "LIMIT", limitPrice: 110, quantity: 1, quoteOrderQty: undefined }), 10000);
+    expect(r.restingUsd).toBe(110);
+    expect(r.projectedFillPrice).toBe(110);
+  });
+
+  it("a marketable limit SELL walks bids at or above the limit", async () => {
+    const venue = makeVenue({
+      bids: [
+        { price: 100, quantity: 1 },
+        { price: 90, quantity: 5 },
+      ],
+    });
+    const r = await simulateProposal(venue, makeProposal({ side: "SELL", type: "LIMIT", limitPrice: 95, quantity: 2, quoteOrderQty: undefined }), 10000);
+    // Takes the 100 level (1 unit, $100); the other unit ($95) rests.
+    expect(r.projectedFillPrice).toBe(100);
+    expect(r.restingUsd).toBe(95);
+  });
+
+  it("a MARKET order reports no resting notional", async () => {
+    const venue = makeVenue({ asks: [{ price: 100, quantity: 10 }] });
+    const r = await simulateProposal(venue, makeProposal({ quoteOrderQty: 50 }), 10000);
+    expect(r.restingUsd).toBe(0);
   });
 });

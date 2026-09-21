@@ -13,14 +13,20 @@ Output ONLY a JSON object (no markdown fences, no commentary) with exactly these
   "allowedSymbols": string[] | null,   // e.g. ["BTCUSDT","ETHUSDT"], or null if unrestricted
   "blockedSymbols": string[] | null,
   "allowedSides": ("BUY"|"SELL")[] | null,
-  "maxSlippageBps": number | null
+  "maxSlippageBps": number | null,
+  "perSymbolDailyCapUsd": number | null,  // max total USD per symbol per day, across everything
+  "maxTradesPerHour": number | null,      // most trades one agent may make in any rolling hour (whole number)
+  "cooldownSeconds": number | null,       // minimum seconds between two trades by the same agent in the same symbol
+  "maxOpenOrders": number | null,         // most limit orders allowed to rest on the book at once (whole number)
+  "maxLimitDeviationPct": number | null   // a limit price further than this percent from the market is refused
 }
 IMPORTANT: confirmAboveUsd must always be strictly less than perTradeMaxUsd. If it were not, no order could ever
 be large enough to need confirmation without already being blocked by the hard cap, making confirmAboveUsd meaningless.
 Be conservative: if the covenant doesn't mention a limit, pick a sensible strict default rather than an unlimited one
 (e.g. if only one of perTradeMaxUsd/confirmAboveUsd is stated, set the other to roughly a third of it, respecting the
 constraint above; dailyDrawdownHaltPct defaults to 5 if unstated).
-Omit optional array fields as null rather than guessing a symbol list that wasn't mentioned.`;
+Omit optional array fields as null rather than guessing a symbol list that wasn't mentioned.
+Set perSymbolDailyCapUsd, maxTradesPerHour, cooldownSeconds, maxOpenOrders, and maxLimitDeviationPct to null unless the covenant asks for that kind of limit. Do not invent them.`;
 
 /**
  * Pure parse/normalize/validate step, factored out of compileMandateFromText

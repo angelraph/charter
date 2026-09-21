@@ -1,6 +1,8 @@
 import { userInfo } from "node:os";
 import { approve, engageKillSwitch, getKillSwitch, listApprovals, reject, releaseKillSwitch } from "../../approval/service.js";
 import type { ApprovalStatus } from "../../approval/state.js";
+import { activeVenue } from "../../venues/index.js";
+import { cancelAllCharterOrders, cancelCharterOrder, listOpenCharterOrders } from "../../execution/orders.js";
 
 /** The CLI runs with local access to the audit log, so the operator's OS username is the default identity. */
 function operator(explicit?: string): string {
@@ -39,10 +41,34 @@ export async function rejectCommand(approvalId: string, approver: string | undef
   console.log(`Rejected by ${who}. Nothing was placed.`);
 }
 
-export async function haltCommand(by: string | undefined, reason?: string): Promise<void> {
+export async function haltCommand(by: string | undefined, reason?: string, cancelOpen = false): Promise<void> {
   const who = operator(by);
   await engageKillSwitch(who, reason);
   console.log(`Kill switch ENGAGED by ${who}. Every proposal is now vetoed until it is released.`);
+  if (cancelOpen) {
+    const { cancelled, failed } = await cancelAllCharterOrders(activeVenue, who, reason ?? "kill switch");
+    console.log(`Cancelled ${cancelled.length} resting CHARTER order${cancelled.length === 1 ? "" : "s"}.`);
+    for (const f of failed) console.log(`  could not cancel ${f.order.symbol} ${f.order.orderId}: ${f.error}`);
+  } else {
+    console.log("Any order already resting on the book stays there. Add --cancel-open to pull them.");
+  }
+}
+
+export async function ordersCommand(): Promise<void> {
+  const orders = await listOpenCharterOrders(activeVenue);
+  if (orders.length === 0) {
+    console.log("No CHARTER orders are resting on the book.");
+    return;
+  }
+  for (const o of orders) {
+    console.log(`${o.symbol}  ${o.orderId}  ${o.side} ${o.origQty} @ ${o.price}  ${o.status}  filled ${o.executedQty}`);
+  }
+}
+
+export async function cancelCommand(symbol: string, orderId: string, by: string | undefined, reason?: string): Promise<void> {
+  const who = operator(by);
+  await cancelCharterOrder(activeVenue, symbol.toUpperCase(), orderId, who, reason);
+  console.log(`Cancelled ${symbol.toUpperCase()} order ${orderId}. Recorded as cancelled by ${who}.`);
 }
 
 export async function resumeCommand(by: string | undefined): Promise<void> {

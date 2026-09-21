@@ -32,7 +32,10 @@ CHARTER enforces limits only on trades that go through it. For that to mean anyt
 | Approval replayed, or two approvals race | An approval is granted once; a per-id guard covers simultaneous requests | `src/approval/service.ts` |
 | Approval acted on after conditions changed | The proposal is evaluated again, with fresh market data, spend, drawdown, and kill switch, at the moment of approval | `src/approval/service.ts` |
 | Approval acted on after it went stale | Approvals expire | `src/approval/state.ts` |
-| Trading must stop now | Kill switch vetoes everything, including an already-approved trade not yet executed | `src/policy/rules/killSwitch.ts` |
+| Trading must stop now | Kill switch vetoes everything, including an already-approved trade not yet executed. `--cancel-open` also pulls resting orders off the book | `src/policy/rules/killSwitch.ts`, `src/execution/orders.ts` |
+| A limit price typo, or too many resting orders | Limit price must be near the market; the number of resting orders is capped | `src/policy/rules/orders.ts` |
+| A runaway agent trading too often | Per-agent hourly trade limit, per-symbol cooldown, and a per-symbol daily cap | `src/policy/rules/activity.ts` |
+| Selling something not held | A sell must be covered by holdings, and is refused if holdings cannot be read | `src/policy/rules/orders.ts` |
 | The record is edited after the fact | Hash-chained log; edits, reordering, and deletions are detected by `audit verify` | `src/audit/log.ts` |
 | Acting on a tampered record | The chain is verified before an approval is acted on | `src/approval/service.ts` |
 | Timing attacks on key comparison | Constant-time comparison for every credential | `constantTimeEquals` |
@@ -48,7 +51,10 @@ CHARTER enforces limits only on trades that go through it. For that to mean anyt
 - **Denial of service.** There is no rate limiting on the API beyond what the mandate rules impose on trading.
 - **Transport security.** The server speaks plain HTTP. Put it behind TLS if it is reachable beyond localhost.
 - **Testnet only.** Everything here has been exercised against Binance Spot Testnet. The mainnet execution path has not been run.
-- **Simulation is an estimate.** It walks a sampled order book and can understate the impact of a large order; it now says so when the depth ran out, but it does not predict moves between simulation and fill.
+- **Simulation is an estimate.** It walks a sampled order book and can understate the impact of a large order; it says so when the depth ran out, but it does not predict moves between simulation and fill.
+- **A halt does not undo what already happened.** It stops new proposals and, with `--cancel-open`, cancels resting orders. An order that has already filled stays filled.
+- **Resting orders are only counted, not watched.** A limit order can fill long after it was approved, at a market the rules never saw. The open-order cap and the spend caps bound this, and it can be cancelled, but nothing re-evaluates it while it rests.
+- **Portfolio value depends on prices the exchange reports.** Holdings with no price route are excluded from NAV and listed, so a portfolio with a lot of unpriceable assets is undervalued for the drawdown check.
 
 ## Assumptions worth stating
 

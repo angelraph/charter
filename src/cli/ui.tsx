@@ -27,9 +27,9 @@ function verdictLine(e: AuditEntry): { text: string; color: string } | null {
 }
 
 function fillLine(e: AuditEntry): string | null {
-  if (e.type !== "EXECUTION_FILLED") return null;
+  if (e.type !== "EXECUTION_FILLED" && e.type !== "EXECUTION_PLACED") return null;
   const p = e.payload as { orderId: string; symbol: string; side: string; executedQty: number; notionalUsd: number };
-  return `#${e.seq} ${e.timestamp.slice(11, 19)}  FILLED  ${p.side} ${p.executedQty} ${p.symbol}  ($${p.notionalUsd.toFixed(2)})  order ${p.orderId}`;
+  return `#${e.seq} ${e.timestamp.slice(11, 19)}  ${e.type === "EXECUTION_PLACED" ? "RESTING" : "FILLED "}  ${p.side} ${p.executedQty} ${p.symbol}  ($${p.notionalUsd.toFixed(2)})  order ${p.orderId}`;
 }
 
 const App: React.FC = () => {

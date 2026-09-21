@@ -51,7 +51,15 @@ Response:
 }
 ```
 
-Set `"execute": true` to have CHARTER place the real order immediately when the verdict is `PASS`, or when you are supplying human confirmation for an `ESCALATE`. Leave it `false` for a dry-run verdict only.
+Set `"execute": true` to have CHARTER place the real order immediately when the verdict is `PASS`. Leave it `false` for a dry-run verdict only. `execute` has no effect on an `ESCALATE`, which always waits for a person to approve it.
+
+A LIMIT order is sized by `quantity` and `limitPrice` instead of `usd`:
+
+```json
+{ "mandateId": "<mandate-id>", "symbol": "BTCUSDT", "side": "BUY", "type": "LIMIT", "quantity": 0.001, "limitPrice": 78000 }
+```
+
+If your instance issues per-agent keys, send yours as `X-Charter-Api-Key`. Your identity then comes from the key, so `agentId` can be left out, and if you send one it must match. A key only works for the mandates it was registered with.
 
 ### charter.status
 

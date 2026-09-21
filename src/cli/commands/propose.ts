@@ -3,14 +3,21 @@ import { runProposal } from "../../policy/runProposal.js";
 export interface ProposeOptions {
   symbol: string;
   side: "BUY" | "SELL";
-  usd: number;
+  type: "MARKET" | "LIMIT";
+  usd?: number;
+  quantity?: number;
+  limitPrice?: number;
   mandateId: string;
   agentId: string;
   execute: boolean;
 }
 
 export async function proposeCommand(opts: ProposeOptions): Promise<void> {
-  console.log(`\n${opts.agentId} wants to ${opts.side} $${opts.usd} of ${opts.symbol}`);
+  if (opts.type === "LIMIT") {
+    console.log(`\n${opts.agentId} wants a limit ${opts.side} of ${opts.quantity} ${opts.symbol} at ${opts.limitPrice}`);
+  } else {
+    console.log(`\n${opts.agentId} wants to ${opts.side} $${opts.usd} of ${opts.symbol}`);
+  }
   console.log("Simulating against live order book...");
 
   const { verdict, execution, approval } = await runProposal({
@@ -18,7 +25,10 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
     mandateId: opts.mandateId,
     symbol: opts.symbol,
     side: opts.side,
+    type: opts.type,
     usd: opts.usd,
+    quantity: opts.quantity,
+    limitPrice: opts.limitPrice,
     reason: "CLI propose command",
     execute: opts.execute,
   });
@@ -28,6 +38,9 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
     `  reference price: ${s.referencePrice}  projected fill: ${s.projectedFillPrice.toFixed(2)}  ` +
       `slippage: ${s.projectedSlippageBps.toFixed(1)}bps  NAV impact: ${s.projectedNavImpactPct.toFixed(3)}%`
   );
+  if (s.restingUsd > 0) {
+    console.log(`  $${s.restingUsd.toFixed(2)} would not fill at once and would rest on the book at the limit price.`);
+  }
   if (s.liquidityInsufficient) {
     console.log(
       `  WARNING: sampled order-book depth could not fully cover this notional (unfilled: $${s.unfilledUsd.toFixed(2)}). ` +
@@ -43,6 +56,14 @@ export async function proposeCommand(opts: ProposeOptions): Promise<void> {
 
   if (verdict.decision === "VETO") {
     console.log("\nVETOed. No order was placed, and no EXECUTION_ATTEMPTED entry will appear in the audit log for this proposal.");
+    return;
+  }
+
+  if (execution && (execution.status === "NEW" || execution.status === "PARTIALLY_FILLED")) {
+    console.log(
+      `\nPlaced and resting: orderId=${execution.orderId} status=${execution.status} executedQty=${execution.executedQty}. ` +
+        `It can still fill later. Cancel it with: charter cancel ${execution.symbol} ${execution.orderId}`
+    );
     return;
   }
 

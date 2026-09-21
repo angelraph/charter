@@ -22,6 +22,8 @@ import {
 } from "../approval/service.js";
 import type { ApprovalStatus } from "../approval/state.js";
 import { authenticateAgent, constantTimeEquals, registryInUse } from "../agents/service.js";
+import { activeVenue } from "../venues/index.js";
+import { cancelAllCharterOrders, cancelCharterOrder, listOpenCharterOrders } from "../execution/orders.js";
 import type { AgentRecord } from "../agents/state.js";
 
 const ProposeBodySchema = z.object({
@@ -30,13 +32,27 @@ const ProposeBodySchema = z.object({
   mandateId: z.string().uuid(),
   symbol: z.string().min(1),
   side: z.enum(["BUY", "SELL"]),
-  usd: z.number().positive(),
+  type: z.enum(["MARKET", "LIMIT"]).optional().default("MARKET"),
+  /** MARKET: the amount in USD. */
+  usd: z.number().positive().optional(),
+  /** LIMIT: how much of the asset, and the price. */
+  quantity: z.number().positive().optional(),
+  limitPrice: z.number().positive().optional(),
   reason: z.string().optional(),
   execute: z.boolean().optional().default(false),
+}).superRefine((b, ctx) => {
+  if (b.type === "MARKET" && b.usd === undefined && b.quantity === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A MARKET proposal needs usd (or quantity)" });
+  }
+  if (b.type === "LIMIT") {
+    if (b.quantity === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A LIMIT proposal needs quantity" });
+    if (b.limitPrice === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A LIMIT proposal needs limitPrice" });
+    if (b.usd !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A LIMIT proposal is sized by quantity, not usd" });
+  }
 });
 
 const DecisionBodySchema = z.object({ note: z.string().optional() });
-const HaltBodySchema = z.object({ reason: z.string().optional() });
+const HaltBodySchema = z.object({ reason: z.string().optional(), cancelOpen: z.boolean().optional().default(false) });
 
 /** Routes that decide something (approve, reject, halt, resume) rather than propose it. */
 function isApproverRoute(path: string): boolean {
@@ -163,6 +179,10 @@ export function startApiServer(): Server {
         res.status(404).json({ error: err.message });
         return;
       }
+      if (err instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid proposal", issues: err.issues });
+        return;
+      }
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
@@ -258,7 +278,24 @@ export function startApiServer(): Server {
       res.status(400).json({ error: "Invalid body", issues: body.error.issues });
       return;
     }
-    res.json({ killSwitch: await engageKillSwitch(approver(req), body.data.reason) });
+    const killSwitch = await engageKillSwitch(approver(req), body.data.reason);
+    // Optionally pull every resting CHARTER order off the book as well, since a
+    // halt stops new proposals but does not by itself stop an order already resting.
+    const cancelled = body.data.cancelOpen ? await cancelAllCharterOrders(activeVenue, approver(req), body.data.reason ?? "kill switch") : undefined;
+    res.json({ killSwitch, ...(cancelled ? { cancelled: cancelled.cancelled.length, failed: cancelled.failed } : {}) });
+  });
+
+  app.get("/control/orders", async (_req: Request, res: Response) => {
+    res.json(await listOpenCharterOrders(activeVenue));
+  });
+
+  app.post("/control/orders/:symbol/:orderId/cancel", async (req: Request, res: Response) => {
+    try {
+      await cancelCharterOrder(activeVenue, req.params.symbol as string, req.params.orderId as string, approver(req));
+      res.json({ cancelled: req.params.orderId });
+    } catch (err) {
+      res.status(502).json({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   app.post("/control/resume", async (req: Request, res: Response) => {

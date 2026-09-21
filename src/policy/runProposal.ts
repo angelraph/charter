@@ -13,7 +13,13 @@ export interface RunProposalInput {
   mandateId: string;
   symbol: string;
   side: "BUY" | "SELL";
-  usd: number;
+  /** Order type. Defaults to MARKET. */
+  type?: "MARKET" | "LIMIT";
+  /** MARKET: the amount to trade, in USD. */
+  usd?: number;
+  /** LIMIT: how much of the asset, and the price. */
+  quantity?: number;
+  limitPrice?: number;
   reason?: string;
   /** Place the real order if the verdict is PASS. Has no effect on an ESCALATE, which always waits for a separate human approval. */
   execute: boolean;
@@ -42,8 +48,10 @@ export async function runProposal(input: RunProposalInput): Promise<RunProposalR
     mandateId: mandate.id,
     symbol: input.symbol,
     side: input.side,
-    type: "MARKET",
-    quoteOrderQty: input.usd,
+    type: input.type ?? "MARKET",
+    quoteOrderQty: input.type === "LIMIT" ? undefined : input.usd,
+    quantity: input.quantity,
+    limitPrice: input.limitPrice,
     reason: input.reason,
     submittedAt: new Date().toISOString(),
   });

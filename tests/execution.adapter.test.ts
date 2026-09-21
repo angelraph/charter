@@ -35,6 +35,7 @@ function makeSimulation(overrides: Partial<SimulationResult> = {}): SimulationRe
     orderBookDepthSampledAt: new Date().toISOString(),
     liquidityInsufficient: false,
     unfilledUsd: 0,
+    restingUsd: 0,
     ...overrides,
   };
 }
@@ -64,6 +65,12 @@ function makeVenue(overrides: Partial<ExecutionVenue> = {}): ExecutionVenue {
       throw new Error("placeOrder not stubbed for this test");
     },
     async getOrder(): Promise<OrderResult> {
+      throw new Error("not used in this test");
+    },
+    async getOpenOrders() {
+      return [];
+    },
+    async cancelOrder(): Promise<OrderResult> {
       throw new Error("not used in this test");
     },
     ...overrides,
@@ -165,5 +172,34 @@ describe("executeProposal with an approval", () => {
     const venue = makeVenue({ placeOrder: vi.fn().mockResolvedValue(orderResult) });
     await executeProposal(venue, makeProposal(), makeVerdict("PASS"));
     expect(mockedAppend.mock.calls[0]![2]).not.toHaveProperty("approvalId");
+  });
+});
+
+describe("executeProposal with resting and unfilled orders", () => {
+  const base = { venue: "testnet" as const, symbol: "BTCUSDT", side: "BUY" as const, type: "LIMIT" as const, cummulativeQuoteQty: 0, fills: [], raw: {} };
+
+  it("logs a resting order as placed, not filled", async () => {
+    const venue = makeVenue({ placeOrder: vi.fn().mockResolvedValue({ ...base, orderId: "1", status: "NEW", executedQty: 0 }) });
+    await executeProposal(venue, makeProposal(), makeVerdict("PASS"));
+    expect(mockedAppend.mock.calls.map((c) => c[0])).toEqual(["EXECUTION_ATTEMPTED", "EXECUTION_PLACED"]);
+  });
+
+  it("logs a partly filled order as placed, since the rest is still open", async () => {
+    const venue = makeVenue({ placeOrder: vi.fn().mockResolvedValue({ ...base, orderId: "2", status: "PARTIALLY_FILLED", executedQty: 0.5 }) });
+    await executeProposal(venue, makeProposal(), makeVerdict("PASS"));
+    expect(mockedAppend.mock.calls[1]![0]).toBe("EXECUTION_PLACED");
+  });
+
+  it("records the agent and symbol so activity rules can find the trade later", async () => {
+    const venue = makeVenue({ placeOrder: vi.fn().mockResolvedValue({ ...base, orderId: "3", status: "FILLED", executedQty: 1 }) });
+    await executeProposal(venue, makeProposal(), makeVerdict("PASS"));
+    expect(mockedAppend.mock.calls[0]![2]).toMatchObject({ agentId: "test-agent", symbol: "BTCUSDT" });
+    expect(mockedAppend.mock.calls[1]![2]).toMatchObject({ agentId: "test-agent" });
+  });
+
+  it("does not count an order that ended with nothing executed", async () => {
+    const venue = makeVenue({ placeOrder: vi.fn().mockResolvedValue({ ...base, orderId: "4", status: "EXPIRED", executedQty: 0 }) });
+    await executeProposal(venue, makeProposal(), makeVerdict("PASS"));
+    expect(mockedAppend.mock.calls.map((c) => c[0])).toEqual(["EXECUTION_ATTEMPTED", "EXECUTION_REJECTED_BY_PLATFORM"]);
   });
 });

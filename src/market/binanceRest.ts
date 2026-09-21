@@ -17,6 +17,16 @@ export async function getTickerPrice(baseUrl: string, symbol: string): Promise<T
   return { symbol: json.symbol, price: parseFloat(json.price) };
 }
 
+/** Every symbol's last price in one request, so a whole portfolio can be valued without a call per asset. */
+export async function getAllTickerPrices(baseUrl: string): Promise<Map<string, number>> {
+  const res = await fetch(`${baseUrl}/api/v3/ticker/price`);
+  if (!res.ok) throw new Error(`ticker/price (all symbols) failed: ${res.status} ${res.statusText}`);
+  const json = (await res.json()) as Array<{ symbol: string; price: string }>;
+  const prices = new Map<string, number>();
+  for (const t of json) prices.set(t.symbol, parseFloat(t.price));
+  return prices;
+}
+
 export interface Kline {
   openTime: number;
   open: number;
