@@ -159,6 +159,8 @@ CHARTER always executes against a real order-matching engine. It never fabricate
 
 `mainnet-mcp` points at the real [Binance Agent OS MCP server](https://developers.binance.com/en/docs/agent-native/mcp-server), against a real, self-funded Agentic sub-account. It's used only where explicitly stated, with a small amount of real funds.
 
+The MCP connection is not finished, and this is where it stands. `charter mcp probe` reads the server's public OAuth metadata (verified live: public client, PKCE S256, authorization code grant only, no dynamic registration, no refresh tokens). `charter mcp login`, `tools` and `status` implement the sign-in as the server describes it: the client identifies itself with an HTTPS URL that hosts [docs/mcp-client.json](docs/mcp-client.json), the browser consent happens on Binance's own page, and the code returns to a loopback listener that checks `state`. The flow is tested against a fake authorization server, including that the PKCE verifier matches the challenge. It has not been run against Binance's live consent page, so whether Binance accepts this client is unconfirmed. Order placement through MCP is not built; it waits on seeing the real tool schemas that `charter mcp tools` saves after a login.
+
 Every audit log entry records which venue produced it. Check `data/audit.log.jsonl` to see exactly which fills were testnet and which, if any, were mainnet.
 
 ## Setup

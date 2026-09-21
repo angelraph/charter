@@ -6,3 +6,5 @@ data/mandates/
 data/mcp-token.json
 *.log
 .DS_Store
+data/mcp-auth.json
+data/mcp-tools.json

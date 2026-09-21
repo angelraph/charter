@@ -6,6 +6,7 @@ import { auditTailCommand, auditVerifyCommand } from "./cli/commands/audit.js";
 import { mandateCompileCommand } from "./cli/commands/mandate.js";
 import { startApiServer } from "./api/server.js";
 import { startDashboard } from "./cli/ui.js";
+import { mcpLoginCommand, mcpProbeCommand, mcpStatusCommand, mcpToolsCommand } from "./cli/commands/mcp.js";
 import { agentAddCommand, agentListCommand, agentRevokeCommand, agentRotateCommand } from "./cli/commands/agents.js";
 import {
   approvalsListCommand,
@@ -214,6 +215,36 @@ agent
   .description("List registered agents")
   .action(async () => {
     await agentListCommand();
+  });
+
+const mcp = program.command("mcp").description("Connect to the Binance Agent OS MCP server (experimental)");
+
+mcp
+  .command("probe")
+  .description("Show how the server says to authenticate. Public information, no login needed.")
+  .action(async () => {
+    await mcpProbeCommand();
+  });
+
+mcp
+  .command("login")
+  .description("Approve CHARTER in your browser. Needs a real Binance login.")
+  .action(async () => {
+    await mcpLoginCommand();
+  });
+
+mcp
+  .command("tools")
+  .description("List the tools the server offers and save their schemas")
+  .action(async () => {
+    await mcpToolsCommand();
+  });
+
+mcp
+  .command("status")
+  .description("Show whether a login is stored")
+  .action(async () => {
+    await mcpStatusCommand();
   });
 
 const audit = program.command("audit").description("Inspect the hash-chained audit log");
