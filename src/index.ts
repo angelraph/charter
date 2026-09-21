@@ -6,6 +6,7 @@ import { auditTailCommand, auditVerifyCommand } from "./cli/commands/audit.js";
 import { mandateCompileCommand } from "./cli/commands/mandate.js";
 import { startApiServer } from "./api/server.js";
 import { startDashboard } from "./cli/ui.js";
+import { agentAddCommand, agentListCommand, agentRevokeCommand, agentRotateCommand } from "./cli/commands/agents.js";
 import {
   approvalsListCommand,
   approveCommand,
@@ -126,6 +127,43 @@ program
   .description("Show whether the kill switch is engaged and how many approvals are pending")
   .action(async () => {
     await controlStatusCommand();
+  });
+
+const agent = program.command("agent").description("Register the agents allowed to propose, each with its own key bound to specific mandates");
+
+agent
+  .command("add")
+  .description("Register an agent and print its key once")
+  .argument("<agentId>")
+  .requiredOption("--mandate <id...>", "mandate id(s) this agent may propose against")
+  .option("--by <name>", "who is registering (defaults to your OS username)")
+  .action(async (agentId: string, opts: { mandate: string[]; by?: string }) => {
+    await agentAddCommand(agentId, opts.mandate, opts.by);
+  });
+
+agent
+  .command("rotate")
+  .description("Issue a new key for an agent; the old one stops working immediately")
+  .argument("<agentId>")
+  .option("--by <name>")
+  .action(async (agentId: string, opts: { by?: string }) => {
+    await agentRotateCommand(agentId, opts.by);
+  });
+
+agent
+  .command("revoke")
+  .description("Revoke an agent's key")
+  .argument("<agentId>")
+  .option("--by <name>")
+  .action(async (agentId: string, opts: { by?: string }) => {
+    await agentRevokeCommand(agentId, opts.by);
+  });
+
+agent
+  .command("list")
+  .description("List registered agents")
+  .action(async () => {
+    await agentListCommand();
   });
 
 const audit = program.command("audit").description("Inspect the hash-chained audit log");

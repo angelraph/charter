@@ -5,13 +5,29 @@ import type { Server } from "node:http";
 const cfg = vi.hoisted(() => ({
   apiKey: "agent-key" as string | undefined,
   approverKey: "approver-key" as string | undefined,
+  requireAgentKeys: false,
   apiPort: 0,
   approvalTtlMinutes: 10,
   mandatesDir: "unused",
 }));
 
+const auditStore = vi.hoisted(() => ({
+  entries: [] as Array<{ seq: number; timestamp: string; type: string; venue: string; payload: unknown; prevHash: string; hash: string }>,
+}));
+
 vi.mock("../src/config.js", () => ({ config: cfg }));
-vi.mock("../src/audit/log.js", () => ({ auditLog: { tail: vi.fn(async () => []), append: vi.fn(), all: vi.fn(async () => []), verify: vi.fn() } }));
+vi.mock("../src/audit/log.js", () => ({
+  auditLog: {
+    tail: vi.fn(async () => []),
+    append: vi.fn(async (type: string, venue: string, payload: unknown) => {
+      const e = { seq: auditStore.entries.length, timestamp: new Date().toISOString(), type, venue, payload, prevHash: "x", hash: "y" };
+      auditStore.entries.push(e);
+      return e;
+    }),
+    all: vi.fn(async () => [...auditStore.entries]),
+    verify: vi.fn(),
+  },
+}));
 vi.mock("../src/venues/index.js", () => ({ activeVenue: { name: "testnet" }, marketDataBaseUrl: () => "x" }));
 vi.mock("../src/policy/assess.js", () => ({ assessProposal: vi.fn() }));
 vi.mock("../src/execution/adapter.js", () => ({ executeProposal: vi.fn() }));
@@ -50,6 +66,8 @@ afterAll(() => {
 beforeEach(() => {
   cfg.apiKey = "agent-key";
   cfg.approverKey = "approver-key";
+  cfg.requireAgentKeys = false;
+  auditStore.entries.length = 0;
   vi.mocked(runProposal).mockReset();
 });
 
@@ -189,5 +207,124 @@ describe("error responses", () => {
     expect(JSON.parse(text).error).toMatch(/not valid JSON/);
     expect(text).not.toContain("node_modules");
     expect(text).not.toContain("at ");
+  });
+});
+
+describe("per-agent keys", () => {
+  const mandateA = "00000000-0000-0000-0000-00000000000a";
+  const mandateB = "00000000-0000-0000-0000-00000000000b";
+  const bodyFor = (mandateId: string, extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ mandateId, symbol: "BTCUSDT", side: "BUY", usd: 15, ...extra });
+
+  const proposed = (agentId: string) =>
+    ({ proposal: { id: "p-" + agentId, agentId }, verdict: { decision: "PASS" } }) as never;
+
+  async function agentWithKey(agentId: string, mandateIds: string[]) {
+    const { registerAgent } = await import("../src/agents/service.js");
+    return (await registerAgent(agentId, mandateIds, "alice")).key;
+  }
+
+  it("takes the agent's identity from its key, not from the request body", async () => {
+    const key = await agentWithKey("alpha", [mandateA]);
+    vi.mocked(runProposal).mockResolvedValue(proposed("alpha"));
+
+    const res = await fetch(`${base}/propose`, { method: "POST", headers: { ...json, "X-Charter-Api-Key": key }, body: bodyFor(mandateA) });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(runProposal).mock.calls[0]![0].agentId).toBe("alpha");
+  });
+
+  it("refuses a body that claims to be a different agent", async () => {
+    const key = await agentWithKey("alpha", [mandateA]);
+    const res = await fetch(`${base}/propose`, {
+      method: "POST",
+      headers: { ...json, "X-Charter-Api-Key": key },
+      body: bodyFor(mandateA, { agentId: "beta" }),
+    });
+    expect(res.status).toBe(403);
+    expect(runProposal).not.toHaveBeenCalled();
+  });
+
+  it("refuses a mandate the agent is not bound to", async () => {
+    const key = await agentWithKey("alpha", [mandateA]);
+    const res = await fetch(`${base}/propose`, { method: "POST", headers: { ...json, "X-Charter-Api-Key": key }, body: bodyFor(mandateB) });
+    expect(res.status).toBe(403);
+    expect(runProposal).not.toHaveBeenCalled();
+  });
+
+  it("rejects a revoked agent's key", async () => {
+    const key = await agentWithKey("alpha", [mandateA]);
+    const { revokeAgent } = await import("../src/agents/service.js");
+    await revokeAgent("alpha", "alice");
+    const res = await fetch(`${base}/propose`, { method: "POST", headers: { ...json, "X-Charter-Api-Key": key }, body: bodyFor(mandateA) });
+    expect(res.status).toBe(401);
+  });
+
+  it("once agents are registered and no shared key is set, an unauthenticated caller is refused", async () => {
+    cfg.apiKey = undefined;
+    await agentWithKey("alpha", [mandateA]);
+    const res = await fetch(`${base}/propose`, { method: "POST", headers: json, body: bodyFor(mandateA, { agentId: "anyone" }) });
+    expect(res.status).toBe(401);
+  });
+
+  it("revoking the last agent does not reopen the API to unauthenticated callers", async () => {
+    cfg.apiKey = undefined;
+    const key = await agentWithKey("alpha", [mandateA]);
+    const { revokeAgent } = await import("../src/agents/service.js");
+    await revokeAgent("alpha", "alice");
+
+    const withRevokedKey = await fetch(`${base}/propose`, { method: "POST", headers: { ...json, "X-Charter-Api-Key": key }, body: bodyFor(mandateA, { agentId: "x" }) });
+    const withNoKey = await fetch(`${base}/propose`, { method: "POST", headers: json, body: bodyFor(mandateA, { agentId: "x" }) });
+    expect(withRevokedKey.status).toBe(401);
+    expect(withNoKey.status).toBe(401);
+    expect(runProposal).not.toHaveBeenCalled();
+  });
+
+  it("the shared key still works alongside registered agents, unless agent keys are required", async () => {
+    await agentWithKey("alpha", [mandateA]);
+    vi.mocked(runProposal).mockResolvedValue(proposed("legacy"));
+
+    const ok = await fetch(`${base}/propose`, { method: "POST", headers: { ...json, ...AGENT }, body: bodyFor(mandateA, { agentId: "legacy" }) });
+    expect(ok.status).toBe(200);
+
+    cfg.requireAgentKeys = true;
+    const refused = await fetch(`${base}/propose`, { method: "POST", headers: { ...json, ...AGENT }, body: bodyFor(mandateA, { agentId: "legacy" }) });
+    expect(refused.status).toBe(401);
+  });
+
+  it("a shared-key or open caller must still say who it is", async () => {
+    const res = await fetch(`${base}/propose`, { method: "POST", headers: { ...json, ...AGENT }, body: bodyFor(mandateA) });
+    expect(res.status).toBe(400);
+  });
+
+  it("an agent cannot read another agent's escalation, and cannot tell it exists", async () => {
+    const keyA = await agentWithKey("alpha", [mandateA]);
+    vi.mocked(service.getApproval).mockResolvedValue({
+      approvalId: "ap1",
+      status: "pending",
+      expiresAt: "later",
+      proposal: { agentId: "beta" },
+    } as never);
+
+    const res = await fetch(`${base}/escalations/ap1`, { headers: { "X-Charter-Api-Key": keyA } });
+    expect(res.status).toBe(404);
+  });
+
+  it("an agent can read its own escalation", async () => {
+    const keyA = await agentWithKey("alpha", [mandateA]);
+    vi.mocked(service.getApproval).mockResolvedValue({
+      approvalId: "ap1",
+      status: "pending",
+      expiresAt: "later",
+      proposal: { agentId: "alpha" },
+    } as never);
+
+    const res = await fetch(`${base}/escalations/ap1`, { headers: { "X-Charter-Api-Key": keyA } });
+    expect(res.status).toBe(200);
+  });
+
+  it("an agent key cannot use approver routes", async () => {
+    const key = await agentWithKey("alpha", [mandateA]);
+    const res = await fetch(`${base}/control/halt`, { method: "POST", headers: { ...json, "X-Charter-Api-Key": key }, body: "{}" });
+    expect(res.status).toBe(401);
   });
 });
