@@ -33,6 +33,26 @@ flowchart TD
 
 A proposal only ever reaches a real exchange through the execution adapter, and the execution adapter only ever runs on a PASS or an approved ESCALATE. A VETO stops at the policy engine, which is why a vetoed proposal has no execution entry in the audit log at all, not a failed one, a missing one.
 
+## Agents
+
+Each agent gets its own key, bound to the mandates it is allowed to use:
+
+```bash
+npx tsx src/index.ts agent add trader-1 --mandate <mandateId>
+npx tsx src/index.ts agent list
+npx tsx src/index.ts agent rotate trader-1
+npx tsx src/index.ts agent revoke trader-1
+```
+
+The key is printed once and only its hash is stored. An agent sends it as `X-Charter-Api-Key`. From then on:
+
+- Its identity is the key's, not whatever the request body says. A body naming a different agent is refused.
+- It can only propose against its own mandates.
+- It can only read its own results. Another agent's are reported as not found.
+- Rotating replaces the key at once. Revoking stops it at once, and revoking the last agent does not reopen the API to unauthenticated callers.
+
+The single shared `CHARTER_API_KEY` still works for a simple setup. Set `CHARTER_REQUIRE_AGENT_KEYS=true` to refuse it and accept only registered agents.
+
 ## Human approval
 
 An ESCALATE is not confirmed by a flag on the same command. It opens a pending approval that someone other than the proposer has to grant, and the proposing agent can never grant it:
@@ -67,7 +87,7 @@ npx tsx src/index.ts resume
 
 CHARTER only enforces anything if the agent has to go through it. It is a real boundary when CHARTER is the only holder of the exchange credentials and agents hold nothing but the proposing key. If an agent has its own Binance key, it can trade without CHARTER and nothing here stops it. Enforcement is a deployment property, not something the code can guarantee by itself.
 
-What that setup protects against: an agent exceeding its limits, an agent approving its own escalation, replaying or double-executing an approval, acting on a stale approval, and tampering with the record afterward (detectable). What it does not protect against: someone with write access to the audit file who also recomputes every hash, a compromised CHARTER host, or an approver who approves something bad. The CLI runs with local access to the log, so the OS username is the identity it records. The API identity is whatever the holder of the approver key claims in `X-Charter-Approver`. Per-agent keys, and binding each agent to its own mandate, are not built yet; today there is one shared agent key.
+What that setup protects against: an agent exceeding its limits, an agent approving its own escalation, replaying or double-executing an approval, acting on a stale approval, and tampering with the record afterward (detectable). What it does not protect against: someone with write access to the audit file who also recomputes every hash, a compromised CHARTER host, or an approver who approves something bad. The CLI runs with local access to the log, so the OS username is the identity it records. The API identity is whatever the holder of the approver key claims in `X-Charter-Approver`. There is still one shared approver key, so approvers are told apart by the name they claim, not by separate credentials. The full list of what is and is not defended against is in [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ## Verdict reasons
 

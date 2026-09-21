@@ -21,9 +21,12 @@ import {
   releaseKillSwitch,
 } from "../approval/service.js";
 import type { ApprovalStatus } from "../approval/state.js";
+import { authenticateAgent, constantTimeEquals, registryInUse } from "../agents/service.js";
+import type { AgentRecord } from "../agents/state.js";
 
 const ProposeBodySchema = z.object({
-  agentId: z.string().min(1),
+  /** Required when the caller uses the shared key or no key. For a registered agent it is ignored, and must match if given. */
+  agentId: z.string().min(1).optional(),
   mandateId: z.string().uuid(),
   symbol: z.string().min(1),
   side: z.enum(["BUY", "SELL"]),
@@ -55,20 +58,25 @@ export function startApiServer(): Server {
   const app = express();
   app.use(express.json());
 
-  if (!config.apiKey) {
-    console.log("Warning: CHARTER_API_KEY is not set. Anyone who can reach this API can submit proposals.");
-  }
+  void registryInUse().then((any) => {
+    if (config.requireAgentKeys && !any) {
+      console.log("Note: CHARTER_REQUIRE_AGENT_KEYS is set but no agents have been registered, so every proposal is refused until one is (charter agent add).");
+    } else if (!config.requireAgentKeys && !config.apiKey && !any) {
+      console.log("Warning: no CHARTER_API_KEY is set and no agents have been registered. Anyone who can reach this API can submit proposals.");
+    }
+  });
   if (!config.approverKey) {
     console.log("Note: CHARTER_APPROVER_KEY is not set, so the approve/reject/halt/resume endpoints are disabled. Use the CLI to decide.");
   }
 
-  app.use((req: Request, res: Response, next: NextFunction) => {
+  app.use(async (req: Request, res: Response, next: NextFunction) => {
     if (isApproverRoute(req.path)) {
       if (!config.approverKey) {
         res.status(403).json({ error: "Approver endpoints are disabled: CHARTER_APPROVER_KEY is not set on this server" });
         return;
       }
-      if (req.get("X-Charter-Approver-Key") !== config.approverKey) {
+      const presentedApprover = req.get("X-Charter-Approver-Key");
+      if (!presentedApprover || !constantTimeEquals(presentedApprover, config.approverKey)) {
         res.status(401).json({ error: "Missing or invalid X-Charter-Approver-Key header" });
         return;
       }
@@ -79,11 +87,36 @@ export function startApiServer(): Server {
       next();
       return;
     }
-    if (config.apiKey && req.get("X-Charter-Api-Key") !== config.apiKey) {
+
+    try {
+      const presented = req.get("X-Charter-Api-Key");
+
+      // A registered agent's own key identifies it. From here on its identity
+      // comes from the key, never from anything the request body claims.
+      const agent = await authenticateAgent(presented);
+      if (agent) {
+        res.locals.agent = agent;
+        next();
+        return;
+      }
+
+      // The single shared key from before per-agent keys existed. Refused
+      // outright when CHARTER_REQUIRE_AGENT_KEYS=true.
+      if (!config.requireAgentKeys && config.apiKey && presented && constantTimeEquals(presented, config.apiKey)) {
+        next();
+        return;
+      }
+
+      // Nothing configured at all: open, for local development.
+      if (!config.requireAgentKeys && !config.apiKey && !(await registryInUse())) {
+        next();
+        return;
+      }
+
       res.status(401).json({ error: "Missing or invalid X-Charter-Api-Key header" });
-      return;
+    } catch (err) {
+      next(err);
     }
-    next();
   });
 
   // In-memory index of recent results for GET /status/:id. The audit log
@@ -98,8 +131,26 @@ export function startApiServer(): Server {
       res.status(400).json({ error: "Invalid proposal", issues: parsed.error.issues });
       return;
     }
+    const agent = res.locals.agent as AgentRecord | undefined;
+    let agentId = parsed.data.agentId;
+    if (agent) {
+      if (agentId !== undefined && agentId !== agent.agentId) {
+        res.status(403).json({ error: `This key belongs to agent "${agent.agentId}". It cannot propose as "${agentId}".` });
+        return;
+      }
+      if (!agent.mandateIds.includes(parsed.data.mandateId)) {
+        res.status(403).json({ error: `Agent "${agent.agentId}" is not bound to mandate ${parsed.data.mandateId}` });
+        return;
+      }
+      agentId = agent.agentId;
+    }
+    if (!agentId) {
+      res.status(400).json({ error: "agentId is required when not using a registered agent key" });
+      return;
+    }
+
     try {
-      const result = await runProposal(parsed.data);
+      const result = await runProposal({ ...parsed.data, agentId });
       recent.set(result.proposal.id, result);
       res.status(200).json({
         proposalId: result.proposal.id,
@@ -118,7 +169,10 @@ export function startApiServer(): Server {
 
   app.get("/status/:id", (req: Request, res: Response) => {
     const result = recent.get(req.params.id as string);
-    if (!result) {
+    const agent = res.locals.agent as AgentRecord | undefined;
+    // A registered agent only ever sees its own proposals. Someone else's is
+    // reported as unknown, so its existence is not revealed either.
+    if (!result || (agent && result.proposal.agentId !== agent.agentId)) {
       res.status(404).json({ error: "Unknown proposal id (not seen since this server started)" });
       return;
     }
@@ -134,6 +188,10 @@ export function startApiServer(): Server {
   app.get("/escalations/:approvalId", async (req: Request, res: Response) => {
     try {
       const record = await getApproval(req.params.approvalId as string);
+      const agent = res.locals.agent as AgentRecord | undefined;
+      if (agent && record.proposal.agentId !== agent.agentId) {
+        throw new ApprovalNotFoundError(record.approvalId);
+      }
       res.json({
         approvalId: record.approvalId,
         status: record.status,

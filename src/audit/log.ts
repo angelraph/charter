@@ -19,7 +19,9 @@ export type AuditEventType =
   | "APPROVAL_REJECTED"
   | "APPROVAL_EXPIRED"
   | "KILL_SWITCH_ENGAGED"
-  | "KILL_SWITCH_RELEASED";
+  | "KILL_SWITCH_RELEASED"
+  | "AGENT_REGISTERED"
+  | "AGENT_REVOKED";
 
 export interface AuditEntry {
   seq: number;
