@@ -6,6 +6,8 @@ A human writes a covenant in plain English: spend caps, a symbol allowlist, leve
 
 Built for the Binance Agent OS Mini Hackathon, Track A.
 
+The submission video shows the code at the [`v1.0-submission`](https://github.com/angelraph/charter/releases/tag/v1.0-submission) tag. One thing has changed since: an ESCALATE is no longer confirmed by re-running with `--execute`. It now needs a real approval from a different person, described under [Human approval](#human-approval).
+
 ## Motivation
 
 Binance's own coverage of the Agent OS launch names the problem this project addresses. TechCrunch's headline on the announcement: "Binance now lets AI agents trade, but keeping them in check is largely up to users." CHARTER takes that responsibility off the user and puts it in an enforced, auditable policy instead.
