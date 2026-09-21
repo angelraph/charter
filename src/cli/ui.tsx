@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { render, Box, Text } from "ink";
 import { activeVenue, marketDataBaseUrl } from "../venues/index.js";
 import { computeApproxNavUsd } from "../market/nav.js";
 import { auditLog, type AuditEntry } from "../audit/log.js";
 import { loadMandate } from "../mandate/store.js";
 import type { Mandate } from "../mandate/schema.js";
+import { deriveApprovals, deriveKillSwitch, type ApprovalRecord, type KillSwitchState } from "../approval/state.js";
 
 const DEMO_MANDATE_ID = "b2f1e9a0-1a2b-4c3d-8e4f-000000000001";
 const POLL_MS = 4000;
@@ -37,20 +38,24 @@ const App: React.FC = () => {
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [killSwitch, setKillSwitch] = useState<KillSwitchState>({ engaged: false });
+  const [pending, setPending] = useState<ApprovalRecord[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     async function poll() {
       try {
-        const [m, nav, tail] = await Promise.all([
+        const [m, nav, all] = await Promise.all([
           loadMandate(DEMO_MANDATE_ID).catch(() => null),
           computeApproxNavUsd(activeVenue, marketDataBaseUrl()),
-          auditLog.tail(15),
+          auditLog.all(),
         ]);
         if (cancelled) return;
         setMandate(m);
         setNavUsd(nav);
-        setEntries(tail);
+        setEntries(all.slice(-15));
+        setKillSwitch(deriveKillSwitch(all));
+        setPending([...deriveApprovals(all).values()].filter((r) => r.status === "pending"));
         setError(null);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
@@ -78,6 +83,23 @@ const App: React.FC = () => {
       <Text dimColor>Nothing reaches Binance until it survives your charter.</Text>
       <Box marginTop={1} flexDirection="column">
         {error && <Text color="red">Error: {error}</Text>}
+        {killSwitch.engaged && (
+          <Box borderStyle="bold" borderColor="red" paddingX={1} marginBottom={1}>
+            <Text bold color="red">
+              TRADING HALTED{killSwitch.by ? ` by ${killSwitch.by}` : ""}{killSwitch.reason ? `: ${killSwitch.reason}` : ""}. Every proposal is vetoed until released.
+            </Text>
+          </Box>
+        )}
+        {pending.length > 0 && (
+          <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} marginBottom={1}>
+            <Text bold color="yellow">Waiting on a human ({pending.length})</Text>
+            {pending.map((r) => (
+              <Text key={r.approvalId} color="yellow">
+                {r.approvalId.slice(0, 8)}  {r.proposal.side} ${r.verdict.simulation.notionalUsd.toFixed(2)} {r.proposal.symbol}  from {r.proposal.agentId}  expires {r.expiresAt.slice(11, 19)}
+              </Text>
+            ))}
+          </Box>
+        )}
         {mandate && (
           <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={1} marginBottom={1}>
             <Text bold>Mandate {mandate.id.slice(0, 8)} ({mandate.status})</Text>

@@ -1,4 +1,4 @@
-# CHARTER demo runbook
+﻿# CHARTER demo runbook
 
 A shot-by-shot script for the submission video. Every command here is real: it runs against the actual testnet venue, no fixtures or canned output. Run these in order, in a clean terminal, at a font size that reads well on video.
 
@@ -65,13 +65,15 @@ $15 is under the $50 confirm threshold, so this is a clean automatic PASS. Let i
 npx tsx src/index.ts propose BTCUSDT BUY --usd 120 --mandate <the-new-mandate-id>
 ```
 
-$120 is between the $50 confirm threshold and the $300 hard cap, so this comes back **ESCALATE**, not PASS or VETO: no violation, but a human sign-off is required before it can execute. Point at that distinction, it's the third real verdict, not just a synonym for PASS. Then supply the confirmation and show it actually fill:
+$120 is between the $50 confirm threshold and the $300 hard cap, so this comes back **ESCALATE**, not PASS or VETO: no violation, but a human sign-off is required before it can execute. Point at that distinction, it's the third real verdict, not just a synonym for PASS. It prints an approval id and places nothing, even if you add `--execute`. A different person now approves it, and it is checked again against current conditions before it fills:
 
 ```bash
-npx tsx src/index.ts propose BTCUSDT BUY --usd 120 --mandate <the-new-mandate-id> --execute
+npx tsx src/index.ts approve <approval-id> --approver alice
 ```
 
-`charter audit tail 4` afterward shows the full real sequence: `VERDICT_ISSUED (ESCALATE)` → `EXECUTION_CONFIRMED` (the human sign-off, logged) → `EXECUTION_ATTEMPTED` → `EXECUTION_FILLED`.
+`charter audit tail 6` afterward shows the full real sequence: `VERDICT_ISSUED (ESCALATE)` → `APPROVAL_REQUESTED` → `VERDICT_ISSUED` (the re-check) → `APPROVAL_GRANTED` (with the approver's name) → `EXECUTION_ATTEMPTED` → `EXECUTION_FILLED`.
+
+Optional, and worth a few seconds on camera: run `npx tsx src/index.ts halt --reason "demo"`, propose a compliant $15 trade to show it vetoed, then `npx tsx src/index.ts resume`.
 
 ## Shot 5: the rogue-agent process
 

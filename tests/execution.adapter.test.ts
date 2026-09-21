@@ -125,3 +125,45 @@ describe("executeProposal", () => {
     expect(mockedAppend.mock.calls[1]![0]).toBe("EXECUTION_REJECTED_BY_PLATFORM");
   });
 });
+
+describe("executeProposal with an approval", () => {
+  const orderResult: OrderResult = {
+    venue: "testnet",
+    orderId: "777",
+    symbol: "BTCUSDT",
+    side: "BUY",
+    type: "MARKET",
+    status: "FILLED",
+    executedQty: 0.0015,
+    cummulativeQuoteQty: 120,
+    fills: [],
+    raw: {},
+  };
+
+  it("executes an ESCALATE verdict once a real approval is attached", async () => {
+    const venue = makeVenue({ placeOrder: vi.fn().mockResolvedValue(orderResult) });
+    const result = await executeProposal(venue, makeProposal(), makeVerdict("ESCALATE"), { approvalId: "ap-1", approver: "alice" });
+    expect(result).toBe(orderResult);
+  });
+
+  it("records the approval id and approver on both the attempt and the fill", async () => {
+    const venue = makeVenue({ placeOrder: vi.fn().mockResolvedValue(orderResult) });
+    await executeProposal(venue, makeProposal(), makeVerdict("ESCALATE"), { approvalId: "ap-1", approver: "alice" });
+    expect(mockedAppend.mock.calls[0]![2]).toMatchObject({ approvalId: "ap-1", approvedBy: "alice" });
+    expect(mockedAppend.mock.calls[1]![2]).toMatchObject({ approvalId: "ap-1", approvedBy: "alice" });
+  });
+
+  it("still refuses a VETO even when an approval is supplied", async () => {
+    const placeOrder = vi.fn();
+    const venue = makeVenue({ placeOrder });
+    await expect(executeProposal(venue, makeProposal(), makeVerdict("VETO"), { approvalId: "ap-1", approver: "alice" })).rejects.toThrow("not PASS");
+    expect(placeOrder).not.toHaveBeenCalled();
+    expect(mockedAppend).not.toHaveBeenCalled();
+  });
+
+  it("adds no approval fields to a plain PASS", async () => {
+    const venue = makeVenue({ placeOrder: vi.fn().mockResolvedValue(orderResult) });
+    await executeProposal(venue, makeProposal(), makeVerdict("PASS"));
+    expect(mockedAppend.mock.calls[0]![2]).not.toHaveProperty("approvalId");
+  });
+});
